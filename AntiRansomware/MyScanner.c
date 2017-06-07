@@ -679,6 +679,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
 			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			RFNotifyUserProcess(fltType_PostCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PreClose:
 			DbgPrint("[Anti-Rs] ScannerPreClose\n");
@@ -688,6 +689,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			break;
 		case fltType_PreCleanup:
 			DbgPrint("[Anti-Rs] ScannerPreCleanup\n");
+			RFNotifyUserProcess(fltType_PreCleanup, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostCleanup:
 			DbgPrint("[Anti-Rs] ScannerPostCleanup\n");
@@ -713,6 +715,63 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 	}
 
 	FltReleaseFileNameInformation(nameInfo);
+}
+
+
+BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RELATED_OBJECTS FltObjects, PFLT_FILE_NAME_INFORMATION nameInfo, PFLT_CALLBACK_DATA Data)
+{
+	NTSTATUS status = STATUS_SUCCESS;
+	ULONG replyLength;
+	PSCANNER_NOTIFICATION notification = NULL;
+
+	//DbgPrint("fltType is %d, length = %d , path = %S , AND size is %d\n",fltType,pathLength,pPath, sizeof( SCANNER_NOTIFICATION ));
+
+	if (ScannerData.ClientPort == NULL)
+	{
+		return FALSE;
+	}
+
+	notification = ExAllocatePoolWithTag(NonPagedPool, sizeof(SCANNER_NOTIFICATION), '2939');
+
+	if (notification == NULL)
+	{
+		return FALSE;
+	}
+
+	notification->BytesToScan = pathLength;
+	notification->Reserved = fltType;
+	notification->ulPID = PsGetProcessId(IoThreadToProcess(Data->Thread));
+	notification->ulTID = Data->Thread;
+	notification->OrgFileName = FltObjects->FileObject->FileName.Buffer;
+	notification->RenameFileName = nameInfo->Name.Buffer;
+	notification->SharedmodeWrite = FltObjects->FileObject->SharedWrite;
+	RtlCopyMemory(&notification->Contents, pPath, notification->BytesToScan);
+	//RtlCopyMemory( &notification->OrgFileName, pPath, notification->BytesToScan );
+
+	//notification->Contents 맨뒤에 널처리 해준다. 
+	*(wchar_t*)&notification->Contents[notification->BytesToScan] = L'\0';
+
+	replyLength = sizeof(SCANNER_REPLY);
+	status = FltSendMessage(ScannerData.Filter,
+		&ScannerData.ClientPort,
+		notification,
+		sizeof(SCANNER_NOTIFICATION),
+		notification,
+		&replyLength,
+		NULL);
+
+	if (STATUS_SUCCESS == status)
+	{
+		DbgPrint("replyData is %d", ((PSCANNER_REPLY)notification)->SafeToOpen);
+	}
+
+
+	if (notification != NULL)
+	{
+		ExFreePoolWithTag(notification, '2939');
+	}
+
+	return TRUE;
 }
 
 

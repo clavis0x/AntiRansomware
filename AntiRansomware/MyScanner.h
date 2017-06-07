@@ -191,6 +191,8 @@ ScannerInstanceSetup(
 	__in FLT_FILESYSTEM_TYPE VolumeFilesystemType
 );
 
+VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects);
+BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RELATED_OBJECTS FltObjects, PFLT_FILE_NAME_INFORMATION nameInfo, PFLT_CALLBACK_DATA Data);
 
 #endif /* __SCANNER_H__ */
 

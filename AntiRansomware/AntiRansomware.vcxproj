@@ -102,6 +102,7 @@
     <ClCompile Include="MyScanner.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\inc\scanuk.h" />
     <ClInclude Include="MyScanner.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

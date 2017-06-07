@@ -3,6 +3,15 @@
 //
 
 #pragma once
+#include "AntiRansomwareReportDlg.h"
+#include "scanuser.h"
+
+const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
+
+typedef struct sScanLog {
+	CString timeStamp;
+	CString content;
+}  SCAN_LOG;
 
 
 // CAntiRansomwareUserDlg 대화 상자
@@ -20,6 +29,16 @@ public:
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
+// MyScanner
+public:
+	int m_isRunning;
+
+	CWinThread*	pThreadCommunication;
+
+	vector<SCAN_LOG> m_listScanLog; // packet list
+
+	CRITICAL_SECTION m_csScanLog;
+
 
 // 구현입니다.
 protected:
@@ -30,4 +49,13 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+public:
+	CAntiRansomwareReportDlg m_pAntiRansomwareReportDlg;
+	LRESULT OnInitializationCompleted(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnMoving(UINT fwSide, LPRECT pRect);
+	afx_msg void OnDestroy();
+	afx_msg void OnBnClickedButtonViewreport();
+	void AddLogList(CString msg, bool wTime = false);
+	bool InitMyScanner();
+	static UINT CommunicationMyScanner(LPVOID lpParam);
 };
