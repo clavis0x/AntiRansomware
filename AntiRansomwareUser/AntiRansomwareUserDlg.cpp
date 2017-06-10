@@ -740,6 +740,7 @@ main_cleanup:
 }
 
 
+// 프로세스 행위 기록
 bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 {
 	CString strTemp;
@@ -842,6 +843,7 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 }
 
 
+// 파일, 디렉토리 생성 이벤트 추가
 unsigned int CAntiRansomwareUserDlg::AddEventNewFile(bool isDirectory, CString strPath)
 {
 	ITEM_NEW_FILE tmpINF;
@@ -856,27 +858,29 @@ unsigned int CAntiRansomwareUserDlg::AddEventNewFile(bool isDirectory, CString s
 }
 
 
+// 프로세스 행위 복구
 bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
 {
 	PROCESS_EVENT tmpPE;
 	list<ITEM_NEW_FILE>::iterator itorINF;
 	ITEM_NEW_FILE tmpINF;
 
+	// pid에 해당하는 프로세스의 행위를 역순으로 복구
 	while (m_mapProcessBehavior[pid].stackEventRecord.empty() == false) {
 		tmpPE = m_mapProcessBehavior[pid].stackEventRecord.top();
 		m_mapProcessBehavior[pid].stackEventRecord.pop();
 		switch (tmpPE.mode)
 		{
-			case 0:
+			case 0: // 파일, 디렉토리 생성 -> 파일, 디렉토리 삭제
 				itorINF = m_listNewFile.begin();
 				while (itorINF != m_listNewFile.end())
 				{
 					if (tmpPE.numEvent == itorINF->num) {
 						AddLogList("Delete: " + itorINF->strPath, true);
 						if (itorINF->isDirectory) {
-							RemoveDirectory(itorINF->strPath);
+							RemoveDirectory(itorINF->strPath); // Directory
 						}else{
-							DeleteFile(itorINF->strPath);
+							DeleteFile(itorINF->strPath); // File
 						}
 						m_listNewFile.erase(itorINF);
 						break;
