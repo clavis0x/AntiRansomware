@@ -48,6 +48,12 @@ typedef struct _SCANNER_NOTIFICATION {
     
 } SCANNER_NOTIFICATION, *PSCANNER_NOTIFICATION;
 
+
+typedef struct _USER_NOTIFICATION {
+	ULONG user_pid;
+} USER_NOTIFICATION, *PUSER_NOTIFICATION;
+
+
 typedef struct _SCANNER_REPLY {
 
     BOOLEAN SafeToOpen;
@@ -71,8 +77,6 @@ typedef enum _MY_IRP_FILTER_TYPE
 	fltType_Rename = 2000
 
 } MY_IRP_FILTER_TYPE;
-
-
 
 
 #endif //  __SCANUK_H__

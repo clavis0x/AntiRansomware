@@ -35,6 +35,7 @@ CAntiRansomwareUserDlg::CAntiRansomwareUserDlg(CWnd* pParent /*=NULL*/)
 void CAntiRansomwareUserDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_EDIT_TARGET_PID, ctr_editTargetPid);
 }
 
 BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
@@ -44,6 +45,7 @@ BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
 	ON_REGISTERED_MESSAGE(WM_INITIALIZATION_COMPLETED, OnInitializationCompleted) // WM_INITIALIZATION_COMPLETED
 	ON_BN_CLICKED(IDC_BUTTON_ViewReport, &CAntiRansomwareUserDlg::OnBnClickedButtonViewreport)
 	ON_WM_MOVING()
+	ON_BN_CLICKED(IDC_BUTTON_RECOVERY, &CAntiRansomwareUserDlg::OnBnClickedButtonRecovery)
 END_MESSAGE_MAP()
 
 
@@ -645,6 +647,22 @@ UINT CAntiRansomwareUserDlg::CommunicationMyScanner(LPVOID lpParam)
 	pDlg->AddLogList(strMsg, true);
 	printf("Scanner: Port = 0x%p Completion = 0x%p\n", port, completion);
 
+
+	USER_NOTIFICATION usr_noti;
+	DWORD dwProcId;
+	char szRecvTest[100];
+	DWORD rtnSz;
+
+	GetWindowThreadProcessId(hWnd, &dwProcId);
+	usr_noti.user_pid = dwProcId;
+
+	hr = FilterSendMessage(port,
+		&usr_noti,
+		sizeof(USER_NOTIFICATION),
+		szRecvTest,
+		sizeof(szRecvTest),
+		&rtnSz);
+
 	context.Port = port;
 	context.Completion = completion;
 
@@ -726,6 +744,8 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 {
 	CString strTemp;
 	wchar_t szFilePath[MAX_PATH];
+	PROCESS_EVENT tmpPE;
+	unsigned int numEvent;
 
 	// 신규 프로세스 등록
 	if (m_mapProcessBehavior.find(notification->ulPID) == m_mapProcessBehavior.end())
@@ -774,6 +794,10 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 				strTemp.Format("[신규] %s: %s", (notification->isDir)? "Dir" : "File", (CString)szFilePath);
 				AddLogList(strTemp);
 				m_mapProcessBehavior[notification->ulPID].cntCreate++;
+				numEvent = AddEventNewFile(notification->isDir, (CString)szFilePath);
+				tmpPE.mode = 0; // new
+				tmpPE.numEvent = numEvent;
+				m_mapProcessBehavior[notification->ulPID].stackEventRecord.push(tmpPE);
 			}
 			else if (notification->CreateOptions == 2) {
 				strTemp.Format("[덮어쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
@@ -818,10 +842,58 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 }
 
 
+unsigned int CAntiRansomwareUserDlg::AddEventNewFile(bool isDirectory, CString strPath)
+{
+	ITEM_NEW_FILE tmpINF;
+	unsigned int numEvent = m_numNewFile++;
+
+	tmpINF.num = numEvent;
+	tmpINF.isDirectory = isDirectory;
+	tmpINF.strPath = strPath;
+	m_listNewFile.push_back(tmpINF);
+
+	return numEvent;
+}
+
+
 bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
 {
+	PROCESS_EVENT tmpPE;
+	list<ITEM_NEW_FILE>::iterator itorINF;
+	ITEM_NEW_FILE tmpINF;
 
-
+	while (m_mapProcessBehavior[pid].stackEventRecord.empty() == false) {
+		tmpPE = m_mapProcessBehavior[pid].stackEventRecord.top();
+		m_mapProcessBehavior[pid].stackEventRecord.pop();
+		switch (tmpPE.mode)
+		{
+			case 0:
+				itorINF = m_listNewFile.begin();
+				while (itorINF != m_listNewFile.end())
+				{
+					if (tmpPE.numEvent == itorINF->num) {
+						AddLogList("Delete: " + itorINF->strPath, true);
+						if (itorINF->isDirectory) {
+							RemoveDirectory(itorINF->strPath);
+						}else{
+							DeleteFile(itorINF->strPath);
+						}
+						m_listNewFile.erase(itorINF);
+						break;
+					}
+					itorINF++;
+				}
+				break;
+		}
+	}
 
 	return false;
+}
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	CString strTemp;
+	ctr_editTargetPid.GetWindowTextA(strTemp);
+	RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
 }

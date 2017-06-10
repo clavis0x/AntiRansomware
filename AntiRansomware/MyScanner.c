@@ -25,6 +25,8 @@ Kernel mode
 #include "scanuk.h"
 #include "MyScanner.h"
 
+ULONG g_userPID = 0; // User-Process PID
+
 // Underline --
 #define PagedPool 1
 typedef PVOID PSECURITY_DESCRIPTOR;
@@ -85,6 +87,16 @@ ScannerPortConnect(
 VOID
 ScannerPortDisconnect(
 	__in_opt PVOID ConnectionCookie
+);
+
+VOID
+ScannerMessageNotify(
+	IN PVOID PortCookie,
+	IN PVOID InputBuffer OPTIONAL,
+	IN ULONG InputBufferLength,
+	OUT PVOID OutputBuffer OPTIONAL,
+	IN ULONG OutputBufferLength,
+	OUT PULONG ReturnOutputBufferLength
 );
 
 NTSTATUS
@@ -256,7 +268,7 @@ Returns STATUS_SUCCESS.
 			NULL,
 			ScannerPortConnect,
 			ScannerPortDisconnect,
-			NULL,
+			ScannerMessageNotify,
 			1);
 		//
 		//  Free the security descriptor in all cases. It is not needed once
@@ -386,6 +398,28 @@ None
 	//
 
 	ScannerData.UserProcess = NULL;
+}
+
+
+VOID
+ScannerMessageNotify(
+	IN PVOID PortCookie,
+	IN PVOID InputBuffer OPTIONAL,
+	IN ULONG InputBufferLength,
+	OUT PVOID OutputBuffer OPTIONAL,
+	IN ULONG OutputBufferLength,
+	OUT PULONG ReturnOutputBufferLength
+)
+{
+	PUSER_NOTIFICATION notification;
+
+	char szRecvTest[100] = { 0 };
+
+	notification = (PUSER_NOTIFICATION)InputBuffer;
+	g_userPID = notification->user_pid;
+
+	DbgPrint("[Anti-Rs] ===== ScannerMessageNotify!! =====\n");
+	DbgPrint("[Anti-Rs] User-PID: %d\n", notification->user_pid);
 }
 
 
@@ -626,6 +660,8 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		PWSTR FileName;
 	} setInfo;
 
+	if (g_userPID == PsGetProcessId(IoThreadToProcess(Data->Thread)))
+		return;
 
 	if (FlagOn(Data->Iopb->IrpFlags, IRP_CREATE_OPERATION)) {
 		if (Data->IoStatus.Information == FILE_CREATED) {

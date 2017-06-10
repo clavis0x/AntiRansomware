@@ -6,6 +6,7 @@
 #include "AntiRansomwareReportDlg.h"
 #include "AntiRansomwareTable.h"
 #include "scanuser.h"
+#include "afxwin.h"
 
 const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
 
@@ -73,4 +74,7 @@ public:
 	static UINT CommunicationMyScanner(LPVOID lpParam);
 	bool RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	bool RecoveryProcessBehavior(DWORD pid);
+	unsigned int AddEventNewFile(bool isDirectory, CString strPath);
+	CEdit ctr_editTargetPid;
+	afx_msg void OnBnClickedButtonRecovery();
 };
