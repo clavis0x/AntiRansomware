@@ -40,8 +40,19 @@
 #include <strsafe.h>
 
 #include <mmSystem.h>
+#include <tlhelp32.h>
+#include <Psapi.h>
+
 #include <vector>
+#include <list>
+#include <queue>
+#include <stack>
+#include <map>
 using std::vector;
+using std::list;
+using std::queue;
+using std::stack;
+using std::map;
 
 
 

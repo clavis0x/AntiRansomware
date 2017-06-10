@@ -37,10 +37,14 @@ typedef struct _SCANNER_NOTIFICATION {
     ULONG fltType;
 	ULONG ulPID;			    // pid
 	ULONG ulTID;			    // tid
-    CHAR  OrgFileName;
+    //CHAR  OrgFileName;
     CHAR  RenameFileName;
     ULONG SharedmodeWrite;
+	ULONG CreateOptions;
+	CHAR isDir;
+	UCHAR modeDelete;
     UCHAR Contents[SCANNER_READ_BUFFER_SIZE];
+	UCHAR OrgFileName[SCANNER_READ_BUFFER_SIZE];
     
 } SCANNER_NOTIFICATION, *PSCANNER_NOTIFICATION;
 

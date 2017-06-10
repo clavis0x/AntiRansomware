@@ -108,6 +108,7 @@
   <ItemGroup>
     <ClInclude Include="..\inc\scanuk.h" />
     <ClInclude Include="AntiRansomwareReportDlg.h" />
+    <ClInclude Include="AntiRansomwareTable.h" />
     <ClInclude Include="AntiRansomwareUser.h" />
     <ClInclude Include="AntiRansomwareUserDlg.h" />
     <ClInclude Include="Resource.h" />

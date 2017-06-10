@@ -70,7 +70,7 @@ BOOL CAntiRansomwareReportDlg::OnInitDialog()
 	ctr_listLog.SetExtendedStyle(LVS_EX_GRIDLINES | LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER); // List Control 스타일 설정
 
 	ctr_listLog.InsertColumn(0, _T("Time"), LVCFMT_LEFT, 65, -1);
-	ctr_listLog.InsertColumn(1, _T("Log"), LVCFMT_LEFT, 450, -1);
+	ctr_listLog.InsertColumn(1, _T("Log"), LVCFMT_LEFT, 550, -1);
 
 	m_numLog = 0;
 

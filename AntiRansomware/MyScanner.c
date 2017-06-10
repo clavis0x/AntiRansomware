@@ -44,13 +44,28 @@ SCANNER_DATA ScannerData;
 //
 
 const UNICODE_STRING ScannerExtensionsToScan[] =
-{ RTL_CONSTANT_STRING(L"doc"),
-RTL_CONSTANT_STRING(L"txt"),
-RTL_CONSTANT_STRING(L"bat"),
-RTL_CONSTANT_STRING(L"cmd"),
-RTL_CONSTANT_STRING(L"inf"),
-/*RTL_CONSTANT_STRING( L"ini"),   Removed, to much usage*/
-{ 0, 0, NULL }
+{
+	RTL_CONSTANT_STRING(L"txt"),
+	RTL_CONSTANT_STRING(L"hwp"), // Office
+	RTL_CONSTANT_STRING(L"doc"),
+	RTL_CONSTANT_STRING(L"docx"),
+	RTL_CONSTANT_STRING(L"ppt"),
+	RTL_CONSTANT_STRING(L"pptx"),
+	RTL_CONSTANT_STRING(L"xls"),
+	RTL_CONSTANT_STRING(L"xlsx"),
+	RTL_CONSTANT_STRING(L"c"), // Source code
+	RTL_CONSTANT_STRING(L"cpp"),
+	RTL_CONSTANT_STRING(L"h"),
+	RTL_CONSTANT_STRING(L"hpp"),
+	RTL_CONSTANT_STRING(L"bmp"), // Graphic
+	RTL_CONSTANT_STRING(L"jpg"),
+	RTL_CONSTANT_STRING(L"gif"),
+	RTL_CONSTANT_STRING(L"png"),
+	RTL_CONSTANT_STRING(L"zip"), // Pack
+	RTL_CONSTANT_STRING(L"rar"),
+	RTL_CONSTANT_STRING(L"c"),
+	/*RTL_CONSTANT_STRING( L"ini"),   Removed, to much usage*/
+	{ 0, 0, NULL }
 };
 
 
@@ -120,12 +135,10 @@ const FLT_OPERATION_REGISTRATION Callbacks[] = {
 	ScannerPreCleanup,
 	ScannerPostCleanup },
 
-	/*
 	{ IRP_MJ_WRITE,
 	0,
 	ScannerPreWrite,
 	ScannerPostWrite },
-	*/
 
 	{ IRP_MJ_SET_INFORMATION,
 	0,
@@ -604,6 +617,8 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 	PFILE_RENAME_INFORMATION renameInfo = NULL;
 	NTSTATUS status;
 	wchar_t * pMytestPath = NULL;
+	wchar_t * pMytestPath2 = NULL;
+	BOOLEAN isDelete = FALSE;
 
 	struct {
 		HANDLE RootDirectory;
@@ -611,22 +626,37 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		PWSTR FileName;
 	} setInfo;
 
-	//Write로 접근하는 정보만 출력.. 
-	if (FltObjects->FileObject->WriteAccess != 1) {
 
-		//파일이름 변경일 경우 SetInformation 
-		if (nFltType == fltType_PreSetInformation || nFltType == fltType_PostSetInformation)
-		{
-			//rename 일경우 Write 모드가 아니고. Delete 모드가 활성화 된다. 
-			//내부적으로 MoveFile 을 해주는 듯함.. 새로운 파일 생성하고, 기존 파일 지우는 방식으로.. 
-			// FltObjects가 같을 경우에는 rename이므로 비교가 필요(동일한 패스의 파일이 동일한 FltObject인지)
-			if (FltObjects->FileObject->DeleteAccess != 1 || FltObjects->FileObject->SharedDelete != 1)
-				return;
-		}
-		else {
-			return;
+	if (FlagOn(Data->Iopb->IrpFlags, IRP_CREATE_OPERATION)) {
+		if (Data->IoStatus.Information == FILE_CREATED) {
+			isDelete = TRUE;
 		}
 	}
+
+	if(!isDelete){
+		//Write로 접근하는 정보만 출력.. 
+		if (FltObjects->FileObject->WriteAccess != 1) {
+
+			//파일이름 변경일 경우 SetInformation 
+			if (nFltType == fltType_PreSetInformation || nFltType == fltType_PostSetInformation)
+			{
+				//rename 일경우 Write 모드가 아니고. Delete 모드가 활성화 된다. 
+				//내부적으로 MoveFile 을 해주는 듯함.. 새로운 파일 생성하고, 기존 파일 지우는 방식으로.. 
+				// FltObjects가 같을 경우에는 rename이므로 비교가 필요(동일한 패스의 파일이 동일한 FltObject인지)
+				if (FltObjects->FileObject->DeleteAccess != 1 || FltObjects->FileObject->SharedDelete != 1)
+					return;
+			}
+			else {
+				return;
+			}
+		}
+	}
+
+	/*
+	//확장자부터 확인하자.. 로그가 너무 많이 나옴.. 
+	if (MyCheckFileExt(Data) == FALSE)
+		return;
+	*/
 
 	//step 1 : 파일명 구하기.. 
 	if (nFltType != fltType_PreSetInformation){
@@ -640,6 +670,9 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		}
 	}
 	else {
+		if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass != FileRenameInformation)
+			return;
+
 		// 파일명 변경 - 원본 파일명과 변경된 파일명 구하기
 		renameInfo = (PFILE_RENAME_INFORMATION)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 		setInfo.RootDirectory = renameInfo->RootDirectory;
@@ -664,8 +697,12 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
 	if (pMytestPath == NULL) {
-		FltReleaseFileNameInformation(nameInfo);
-		return;
+		if (nFltType == fltType_PreSetInformation)
+			pMytestPath2 = wcsstr(FltObjects->FileObject->FileName.Buffer, L"MyTest");
+		if (pMytestPath == NULL && pMytestPath2 == NULL) {
+			FltReleaseFileNameInformation(nameInfo);
+			return;
+		}
 	}
 
 	// User Process에게 통보
@@ -694,20 +731,29 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		case fltType_PostCleanup:
 			DbgPrint("[Anti-Rs] ScannerPostCleanup\n");
 			break;
+		case fltType_PreWrite:
+			DbgPrint("[Anti-Rs] ScannerPreWrite\n");
+			//if (Data->Iopb->MajorFunction == IRP_MJ_WRITE && Data->Iopb->Parameters.Write.Length > 0 && FlagOn(FltObjects->FileObject->Flags, FO_FILE_MODIFIED))
+			//	RFNotifyUserProcess(fltType_PreWrite, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			break;
+		case fltType_PostWrite:
+			DbgPrint("[Anti-Rs] ScannerPostWrite\n");
+			//RFNotifyUserProcess(fltType_PostWrite, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			break;
 		case fltType_PreSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPreSetInformation\n");
-			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
+			DbgPrint("[Anti-Rs]  ㄴ src: %S\n", FltObjects->FileObject->FileName.Buffer);
+			DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
 			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
-			DbgPrint("[Anti-Rs] !!! 변경된 파일명->  : %S\n", nameInfo->Name.Buffer);
-			DbgPrint("[Anti-Rs] !!! 오리지널 파일명->  : %S\n", FltObjects->FileObject->FileName.Buffer);
-			DbgPrint("[Anti-Rs] Access PID / TID : %d / %0xd \n", PsGetProcessId(IoThreadToProcess(Data->Thread)), Data->Thread);
+			RFNotifyUserProcess(fltType_PreSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPostSetInformation\n");
 			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
 			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			RFNotifyUserProcess(fltType_PostSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		default: 
 			DbgPrint("[Anti-Rs] ############ fltType_is Error... !! ############ \n");
@@ -723,6 +769,7 @@ BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_
 	NTSTATUS status = STATUS_SUCCESS;
 	ULONG replyLength;
 	PSCANNER_NOTIFICATION notification = NULL;
+	BOOLEAN isDirectory;
 
 	//DbgPrint("fltType is %d, length = %d , path = %S , AND size is %d\n",fltType,pathLength,pPath, sizeof( SCANNER_NOTIFICATION ));
 
@@ -742,12 +789,51 @@ BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_
 	notification->Reserved = fltType;
 	notification->ulPID = PsGetProcessId(IoThreadToProcess(Data->Thread));
 	notification->ulTID = Data->Thread;
-	notification->OrgFileName = FltObjects->FileObject->FileName.Buffer;
+	//notification->OrgFileName = FltObjects->FileObject->FileName.Buffer;
 	notification->RenameFileName = nameInfo->Name.Buffer;
 	notification->SharedmodeWrite = FltObjects->FileObject->SharedWrite;
 	RtlCopyMemory(&notification->Contents, pPath, notification->BytesToScan);
+	RtlZeroMemory(&notification->OrgFileName, SCANNER_READ_BUFFER_SIZE);
+	RtlCopyMemory(&notification->OrgFileName, FltObjects->FileObject-> FileName.Buffer, FltObjects->FileObject->FileName.Length);
 	//RtlCopyMemory( &notification->OrgFileName, pPath, notification->BytesToScan );
+	//RtlCopyMemory(&notification->OrgFileName, FltObjects->FileObject->FileName.Buffer, notification->BytesToScan);
 
+	// Create Option
+	notification->CreateOptions = 0;
+	if (FlagOn(Data->Iopb->IrpFlags, IRP_CREATE_OPERATION)) {
+		if (Data->IoStatus.Information == FILE_CREATED)
+		{
+			notification->CreateOptions = 1;
+		}
+		else if (Data->IoStatus.Information == FILE_OVERWRITTEN)
+		{
+			notification->CreateOptions = 2;
+		}
+	}
+
+	// File(0) or Directory(1)
+	FltIsDirectory(Data->Iopb->TargetFileObject, FltObjects->Instance, &isDirectory);
+	if (isDirectory)
+		notification->isDir = 1;
+	else
+		notification->isDir = 0;
+	/*
+	if (Data->Iopb->Parameters.Create.Options & FILE_DIRECTORY_FILE)
+		notification->isDir = 1;
+	else
+		notification->isDir = 0;
+	*/
+
+	notification->modeDelete = 0;
+	if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass == FileDispositionInformation)
+	{
+		PFILE_DISPOSITION_INFORMATION info = (PFILE_DISPOSITION_INFORMATION)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
+		if (info != NULL && info->DeleteFile)
+		{
+			notification->modeDelete = 1;
+		}
+	}
+	
 	//notification->Contents 맨뒤에 널처리 해준다. 
 	*(wchar_t*)&notification->Contents[notification->BytesToScan] = L'\0';
 
@@ -811,6 +897,10 @@ FLT_PREOP_SUCCESS_NO_CALLBACK - All other threads.
 
 --*/
 {
+	NTSTATUS status;
+	PFLT_FILE_NAME_INFORMATION nameInfo;
+	wchar_t * pMytestPath = NULL;
+
 	UNREFERENCED_PARAMETER(FltObjects);
 	UNREFERENCED_PARAMETER(CompletionContext);
 
@@ -1027,8 +1117,7 @@ FLTAPI ScannerPreClose(
 
 	if (IoThreadToProcess(Data->Thread) == ScannerData.UserProcess) {
 
-		DbgPrint("[Anti-Rs] ScannerPreClose\n");
-		//DbgPrintInformation(fltType_PreClose, Data, FltObjects);
+		DbgPrintInformation(fltType_PreClose, Data, FltObjects);
 		//DbgPrint("!!! scanner.sys -- allowing create for trusted process \n");
 
 		return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -1220,6 +1309,10 @@ Always FLT_PREOP_SUCCESS_NO_CALLBACK.
 		return FLT_PREOP_SUCCESS_NO_CALLBACK;
 	}
 
+	DbgPrintInformation(fltType_PreWrite, Data, FltObjects);
+
+	// Sample
+	/*
 	status = FltGetStreamHandleContext(FltObjects->Instance,
 		FltObjects->FileObject,
 		&context);
@@ -1386,6 +1479,7 @@ Always FLT_PREOP_SUCCESS_NO_CALLBACK.
 			FltReleaseContext(context);
 		}
 	}
+	*/
 
 	return returnStatus;
 }
@@ -1407,6 +1501,7 @@ ScannerPostWrite(
 
 	UNREFERENCED_PARAMETER(CompletionContext);
 	UNREFERENCED_PARAMETER(Flags);
+
 	DbgPrint("PostWrite.....!!!!");
 	DbgPrintInformation(fltType_PostWrite, Data, FltObjects);
 

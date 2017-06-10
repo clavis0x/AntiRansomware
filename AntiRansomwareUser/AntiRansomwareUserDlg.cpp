@@ -17,6 +17,9 @@ SYSTEMTIME g_time; // 시간 구조체.
 HWND hWnd;
 CAntiRansomwareUserDlg *g_pParent;
 
+// Rename용 Driver Letter (임시)
+wchar_t szLastDriveLetter[8];
+
 UCHAR FoulString[] = "foul";
 
 // CAntiRansomwareUserDlg 대화 상자
@@ -60,6 +63,12 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 	g_pParent = this; // 부모 개체 정의
 
 	m_listScanLog.clear();
+
+	m_numNewFile = 0;
+	m_numWriteFile = 0;
+	m_numRenameFile = 0;
+	m_numDeleteFile = 0;
+	m_numBackupFile = 0;
 
 	// CRITICAL SECTION - Initial
 	InitializeCriticalSection(&m_csScanLog);
@@ -184,6 +193,134 @@ bool CAntiRansomwareUserDlg::InitMyScanner()
 	return false;
 }
 
+
+inline void WaitG(double dwMillisecond)
+{
+	MSG msg;
+	LARGE_INTEGER   st, ed, freq;
+	double			WaitFrequency;
+	QueryPerformanceFrequency(&freq);
+	WaitFrequency = ((double)dwMillisecond / 1000) * ((double)freq.QuadPart);
+
+	if (freq.QuadPart == 0)
+	{
+		//::SetDlgItemText(hWnd,IDC_EDIT_Status,"Warning! - 고해상도 타이머 지원 안함.");
+		//AddListLog(1, "지원 안함.");
+		return;
+	}
+
+	QueryPerformanceCounter(&st);
+	QueryPerformanceCounter(&ed);
+	while ((double)(ed.QuadPart - st.QuadPart) < WaitFrequency)
+	{
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		Sleep(1);
+
+		QueryPerformanceCounter(&ed);
+	}
+}
+
+
+BOOL splitDevicePath(const wchar_t * path,
+	wchar_t * devicename, size_t lenDevicename,
+	wchar_t * dir, size_t lenDir,
+	wchar_t * fname, size_t lenFname,
+	wchar_t * ext, size_t lenExt)
+{
+	size_t pathLength;
+	const wchar_t * pPos = path;
+
+	StringCchLengthW(path, MAX_PATH, &pathLength);
+	if (path == NULL || pathLength <= 8)
+		return FALSE;
+
+	//path EX: \Device\HarddiskVolume2\MyTest\123.txt 
+	if (path == NULL)
+		return FALSE;
+
+
+	//STEP 1: 장치명 분리.. \Device\HarddiskVolume2
+	//첫번째 \Device\를 넘기위해 pPos +8 해줌
+	pPos = wcschr(pPos + 8, L'\\');
+	if (devicename != NULL && lenDevicename > 0)
+		wcsncpy_s(devicename, lenDevicename, path, pPos - path);
+
+	//STEP 2: 나머지 경로분리.. \MyTest\123.txt
+	_wsplitpath_s(pPos, NULL, 0, dir, lenDir, fname, lenFname, ext, lenExt);
+
+	return TRUE;
+
+}
+
+//\Device\HarddiskVolume2 --> c: 로 변환.. 
+BOOL GetDeviceNameToDriveLetter(const wchar_t * pDevicePath, wchar_t * bufDriveLetter, size_t bufLen)
+{
+	WCHAR szDriverString[MAX_PATH] = { 0, };
+	WCHAR swTempDeviceName[MAX_PATH];
+	WCHAR szDriveLetter[8];
+	LPCWSTR pPos = NULL;
+
+	if (pDevicePath == NULL || bufDriveLetter == NULL || bufLen <= 0)
+		return FALSE;
+
+	// 전체 드라이브 문자열을 구함. Ex) "A:\ C:\ D:\ "
+	GetLogicalDriveStringsW(_countof(szDriverString), szDriverString);
+	pPos = szDriverString;
+	while (*pPos != TEXT('\0'))
+	{
+		StringCchPrintfW(szDriveLetter, _countof(szDriveLetter), L"%c:", *pPos);
+		if (QueryDosDeviceW(szDriveLetter, swTempDeviceName, _countof(swTempDeviceName)) > 0)
+		{
+			//비교.. 
+			if (wcsncmp(swTempDeviceName, pDevicePath, _countof(swTempDeviceName)) == 0)
+			{
+				StringCchCopyW(bufDriveLetter, bufLen, szDriveLetter);
+				break;
+			}
+		}
+		// 다음 디스크 (4 문자)
+		pPos = &pPos[4];
+	}
+
+	return TRUE;
+}
+
+BOOL ConvertDevicePathToDrivePath(const wchar_t * pDevicePath, wchar_t *bufPath, size_t bufPathLen)
+{
+	wchar_t szDeviceName[128];
+	wchar_t szDirPath[MAX_PATH];
+	wchar_t szFileName[MAX_PATH];
+	wchar_t szExt[32];
+	wchar_t szDriveLetter[8];
+
+	if (pDevicePath == NULL || bufPath == NULL || bufPathLen <= 0)
+		return FALSE;
+
+	//STEP 1 : device 경로를 드라이브 경로로 변경한다. 
+	//ex : \Device\HarddiskVolume2\MyTest\123.txt --> C:\MyTest\123.txt
+
+	//STEP 1 : 디바이스 경로 산산히 분해.. 
+	if (splitDevicePath(pDevicePath, szDeviceName, 128, szDirPath, MAX_PATH, szFileName, MAX_PATH, szExt, 32) == FALSE)
+		return FALSE;
+
+	//SETP 2 : 디바이스 명을 드라이브 레터로 변경.. 
+	//ex : \Device\HarddiskVolume2\ --> C:\
+
+	if (GetDeviceNameToDriveLetter(szDeviceName, szDriveLetter, 8) == FALSE)
+		return FALSE;
+
+	// Reneme용 Drive Letter 저장 (임시)
+	memcpy(szLastDriveLetter, szDriveLetter, sizeof(szLastDriveLetter));
+
+	//STEP 3 : 경로 재조립.. 
+	StringCchPrintfW(bufPath, bufPathLen, L"%s%s%s%s", szDriveLetter, szDirPath, szFileName, szExt);
+
+	return TRUE;
+}
 
 BOOL
 ScanBuffer(
@@ -344,36 +481,49 @@ HRESULT indicating the status of thread exit.
 			switch (notification->Reserved)
 			{
 				case fltType_PreCreate:
-					strMsg.Format("[%d] fltType_PreCreate", notification->ulPID);
+					strMsg.Format("===== [%d] fltType_PreCreate =====", notification->ulPID);
 					g_pParent->AddLogList(strMsg, true);
 					break;
 				case fltType_PostCreate:
-					strMsg.Format("[%d] fltType_PostCreate", notification->ulPID);
-					g_pParent->AddLogList(strMsg, true);
+					strMsg.Format("===== [%d] fltType_PostCreate =====", notification->ulPID);
+					//g_pParent->AddLogList(strMsg, true);
+					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PreClose:
-					strMsg.Format("[%d] fltType_PreClose", notification->ulPID);
+					strMsg.Format("===== [%d] fltType_PreClose =====", notification->ulPID);
 					g_pParent->AddLogList(strMsg, true);
 					break;
 				case fltType_PostClose:
-					strMsg.Format("[%d] fltType_PostClose", notification->ulPID);
+					strMsg.Format("===== [%d] fltType_PostClose =====", notification->ulPID);
 					g_pParent->AddLogList(strMsg, true);
 					break;
 				case fltType_PreCleanup:
-					strMsg.Format("[%d] fltType_PreCleanup", notification->ulPID);
-					g_pParent->AddLogList(strMsg, true);
+					strMsg.Format("===== [%d] fltType_PreCleanup =====", notification->ulPID);
+					//g_pParent->AddLogList(strMsg, true);
 					break;
 				case fltType_PostCleanup:
-					strMsg.Format("[%d] fltType_PostCleanup", notification->ulPID);
+					strMsg.Format("===== [%d] fltType_PostCleanup =====", notification->ulPID);
 					g_pParent->AddLogList(strMsg, true);
+					break;
+				case fltType_PreWrite:
+					strMsg.Format("===== [%d] fltType_PreWrite =====", notification->ulPID);
+					//g_pParent->AddLogList(strMsg, true);
+					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					break;
+				case fltType_PostWrite:
+					strMsg.Format("===== [%d] fltType_PostWrite =====", notification->ulPID);
+					g_pParent->AddLogList(strMsg, true);
+					//g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PreSetInformation:
-					strMsg.Format("[%d] fltType_PreSetInformation", notification->ulPID);
-					g_pParent->AddLogList(strMsg, true);
+					strMsg.Format("===== [%d] fltType_PreSetInformation =====", notification->ulPID);
+					//g_pParent->AddLogList(strMsg, true);
+					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PostSetInformation:
-					strMsg.Format("[%d] fltType_PostSetInformation", notification->ulPID);
-					g_pParent->AddLogList(strMsg, true);
+					strMsg.Format("===== [%d] fltType_PostSetInformation =====", notification->ulPID);
+					//g_pParent->AddLogList(strMsg, true);
+					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 			}
 		}
@@ -569,4 +719,109 @@ main_cleanup:
 
 	pDlg->pThreadCommunication = NULL;
 	return 0;
+}
+
+
+bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
+{
+	CString strTemp;
+	wchar_t szFilePath[MAX_PATH];
+
+	// 신규 프로세스 등록
+	if (m_mapProcessBehavior.find(notification->ulPID) == m_mapProcessBehavior.end())
+	{
+		PROCESS_BEHAVIOR tmpPB;
+		HANDLE handle = NULL;
+		PROCESSENTRY32 pe = { 0 };
+		pe.dwSize = sizeof(PROCESSENTRY32);
+		handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (Process32First(handle, &pe))
+		{
+			do
+			{
+				if (pe.th32ProcessID == notification->ulPID)
+					break;
+			} while (Process32Next(handle, &pe));
+		}
+
+		//g_pParent->AddLogList((CString)pe.szExeFile, false);
+		//strTemp.Format("map 생성: %d", notification->ulPID);
+		//AddLogList(strTemp, true);
+		
+		tmpPB.cntCreate = 0;
+		tmpPB.cntDelete = 0;
+		tmpPB.cntRename = 0;
+		tmpPB.cntWrite = 0;
+		tmpPB.cntWrite_sp = 0;
+		tmpPB.pid = notification->ulPID; // pid
+		tmpPB.ppid = pe.th32ParentProcessID; // ppid
+		tmpPB.strName = pe.szExeFile; // process name
+
+		m_mapProcessBehavior[notification->ulPID] = tmpPB;
+	}
+
+	// Process Info
+	//strTemp.Format("%s / ppid: %d", m_mapProcessBehavior[notification->ulPID].strName, m_mapProcessBehavior[notification->ulPID].ppid);
+	//AddLogList(strTemp, true);
+
+	switch (notification->Reserved)
+	{
+		case fltType_PostCreate:
+			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
+				break;
+
+			if (notification->CreateOptions == 1) {
+				strTemp.Format("[신규] %s: %s", (notification->isDir)? "Dir" : "File", (CString)szFilePath);
+				AddLogList(strTemp);
+				m_mapProcessBehavior[notification->ulPID].cntCreate++;
+			}
+			else if (notification->CreateOptions == 2) {
+				strTemp.Format("[덮어쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+				AddLogList(strTemp);
+			}
+			else {
+				if(!notification->isDir){
+					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+					AddLogList(strTemp);
+				}
+			}
+			break;
+		case fltType_PreWrite:
+			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
+				break;
+			strTemp.Format("[쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+			AddLogList(strTemp);
+			break;
+		case fltType_PreSetInformation:
+			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
+				break;
+
+			if (!notification->modeDelete) {
+				strTemp.Format("[이름 변경] 변경 전 - %s: %s%s", (notification->isDir) ? "Dir" : "File", (CString)szLastDriveLetter, (CString)(wchar_t*)notification->OrgFileName);
+				AddLogList(strTemp);
+				strTemp.Format("[이름 변경] 변경 후 - %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+				AddLogList(strTemp);
+			}
+			break;
+		case fltType_PostSetInformation:
+			if (!notification->modeDelete) break;
+			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
+				break;
+
+			strTemp.Format("[삭제] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+			AddLogList(strTemp);
+			break;
+	}
+
+
+	return true;
+}
+
+
+bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
+{
+
+
+
+	return false;
 }
