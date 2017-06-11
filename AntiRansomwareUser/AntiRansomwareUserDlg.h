@@ -74,7 +74,15 @@ public:
 	static UINT CommunicationMyScanner(LPVOID lpParam);
 	bool RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	bool RecoveryProcessBehavior(DWORD pid);
-	unsigned int AddEventNewFile(bool isDirectory, CString strPath);
+	bool AddEventNewFile(DWORD pid, bool isDirectory, CString strPath);
+	bool AddEventRenameFile(DWORD pid, CString strSrc, CString strDst);
+	bool AddEventWriteFile(DWORD pid, CString strPath);
+	unsigned int AddEventBackupFile(DWORD pid, CString strPath);
+	bool DoRecoveryFile(unsigned int num_back, CString strPath);
+	bool DoBackupFile(CString strPath);
+	bool DoCheckRansomware(CString strPath);
+	BOOL DoKillProcess(DWORD pid);
+	CString GetBackupFilePath(CString strPath);
 	CEdit ctr_editTargetPid;
 	afx_msg void OnBnClickedButtonRecovery();
 };

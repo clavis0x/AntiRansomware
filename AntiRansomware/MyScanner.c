@@ -729,7 +729,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		if (!NT_SUCCESS(status))
 			return;
 	}
-
+	/*
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
 	if (pMytestPath == NULL) {
@@ -740,6 +740,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			return;
 		}
 	}
+	*/
 
 	// User Process에게 통보
 	switch (nFltType)
@@ -749,9 +750,9 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			break;
 		case fltType_PostCreate:
 			DbgPrint("[Anti-Rs] ScannerPostCreate\n");
-			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
-			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
-			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			//DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
+			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
+			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
 			RFNotifyUserProcess(fltType_PostCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PreClose:
@@ -778,17 +779,17 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			break;
 		case fltType_PreSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPreSetInformation\n");
-			DbgPrint("[Anti-Rs]  ㄴ src: %S\n", FltObjects->FileObject->FileName.Buffer);
-			DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
-			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
-			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			//DbgPrint("[Anti-Rs]  ㄴ src: %S\n", FltObjects->FileObject->FileName.Buffer);
+			//DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
+			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
+			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
 			RFNotifyUserProcess(fltType_PreSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPostSetInformation\n");
-			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
-			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
-			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			//DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
+			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
+			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
 			RFNotifyUserProcess(fltType_PostSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		default: 
