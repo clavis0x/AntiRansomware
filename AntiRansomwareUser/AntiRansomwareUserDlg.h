@@ -69,6 +69,7 @@ public:
 	afx_msg void OnMoving(UINT fwSide, LPRECT pRect);
 	afx_msg void OnDestroy();
 	afx_msg void OnBnClickedButtonViewreport();
+	afx_msg void OnBnClickedButtonRecovery();
 	void AddLogList(CString msg, bool wTime = false);
 	bool InitMyScanner();
 	static UINT CommunicationMyScanner(LPVOID lpParam);
@@ -77,12 +78,12 @@ public:
 	bool AddEventNewFile(DWORD pid, bool isDirectory, CString strPath);
 	bool AddEventRenameFile(DWORD pid, CString strSrc, CString strDst);
 	bool AddEventWriteFile(DWORD pid, CString strPath);
+	bool AddEventDeleteFile(DWORD pid, CString strPath);
 	unsigned int AddEventBackupFile(DWORD pid, CString strPath);
 	bool DoRecoveryFile(unsigned int num_back, CString strPath);
 	bool DoBackupFile(CString strPath);
 	bool DoCheckRansomware(CString strPath);
-	BOOL DoKillProcess(DWORD pid);
+	bool DoKillRecoveryRansomware(DWORD pid);
 	CString GetBackupFilePath(CString strPath);
 	CEdit ctr_editTargetPid;
-	afx_msg void OnBnClickedButtonRecovery();
 };

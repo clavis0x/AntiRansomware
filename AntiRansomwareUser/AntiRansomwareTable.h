@@ -28,8 +28,8 @@ typedef struct sItemNewFile {
 } ITEM_NEW_FILE;
 
 typedef struct sItemWriteFile {
-	DWORD pid;
 	unsigned int num;
+	DWORD pid;
 	CString strPath;
 	unsigned int num_back;
 } ITEM_WRITE_FILE;
@@ -42,6 +42,7 @@ typedef struct sItemRenameFile {
 
 typedef struct sItemDeleteFile {
 	unsigned int num;
+	DWORD pid;
 	bool isDirectory;
 	CString strPath;
 	unsigned int num_back;

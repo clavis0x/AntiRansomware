@@ -229,6 +229,94 @@ inline void WaitG(double dwMillisecond)
 }
 
 
+BOOL DoKillProcess(DWORD pid)
+{
+	BOOL bResult;
+	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+	bResult = TerminateProcess(hProcess, 0);
+
+	return bResult;
+}
+
+
+BOOL DoKillProcessTree(DWORD pid)
+{
+	CString strTemp;
+	HANDLE handle = NULL;
+	PROCESSENTRY32 pe = { 0 };
+	pe.dwSize = sizeof(PROCESSENTRY32);
+	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	strTemp.Format("■Kill: %d", pid);
+	g_pParent->AddLogList(strTemp);
+	DoKillProcess(pid);
+
+	if (Process32First(handle, &pe))
+	{
+		do
+		{
+			if (pe.th32ParentProcessID == pid) {
+				DoKillProcessTree(pe.th32ProcessID);
+			}
+		} while (Process32Next(handle, &pe));
+	}
+
+	return TRUE;
+}
+
+
+bool GetProcessName(DWORD pid, DWORD *ppid, char *szName)
+{
+	HANDLE handle = NULL;
+	PROCESSENTRY32 pe = { 0 };
+	pe.dwSize = sizeof(PROCESSENTRY32);
+	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (Process32First(handle, &pe))
+	{
+		do
+		{
+			if (pe.th32ProcessID == pid) {
+				strncpy(szName, pe.szExeFile, MAX_PATH);
+				*ppid = pe.th32ParentProcessID;
+				return true;
+			}
+		} while (Process32Next(handle, &pe));
+	}
+
+	return false;
+}
+
+
+DWORD FindRansomwareParantPID(DWORD pid)
+{
+	bool result;
+	bool isFound = false;
+	DWORD prev_pid = pid;
+	DWORD ppid = pid;
+	char szProcessName[MAX_PATH];
+	CString strTemp;
+
+	while (ppid != 0) {
+		result = GetProcessName(pid, &ppid, szProcessName);
+		if (strcmp(szProcessName, "explorer.exe") == 0) {
+			isFound = true;
+			break;
+		}
+		else {
+			prev_pid = pid;
+			pid = ppid;
+		}
+		if (result == false)
+			return false;
+	}
+	if (isFound == false) {
+		return false;
+	}
+
+	return prev_pid;
+}
+
+
 BOOL splitDevicePath(const wchar_t * path,
 	wchar_t * devicename, size_t lenDevicename,
 	wchar_t * dir, size_t lenDir,
@@ -752,6 +840,7 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 	wchar_t szFilePath[MAX_PATH];
 	PROCESS_EVENT tmpPE;
 	unsigned int numEvent;
+	DWORD pid;
 
 	// 신규 프로세스 등록
 	if (m_mapProcessBehavior.find(notification->ulPID) == m_mapProcessBehavior.end())
@@ -809,7 +898,7 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 				if(!notification->isDir){
 					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
 					AddLogList(strTemp);
-					DoBackupFile((CString)szFilePath);
+					DoBackupFile((CString)szFilePath); // 파일 백업
 
 					// Process Event
 					m_mapProcessBehavior[notification->ulPID].cntWrite++;
@@ -826,11 +915,12 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 						AddEventWriteFile(notification->ulPID, (CString)szFilePath); // 의심
 					}
 					else {
-						WaitG(1000);
 						AddLogList("랜섬웨어 탐지!");
 						ctr_editTargetPid.SetWindowTextA("랜섬웨어 탐지!");
-						DoKillProcess(notification->ulPID);
-						RecoveryProcessBehavior(notification->ulPID); // 파일 복구
+
+						pid = FindRansomwareParantPID(notification->ulPID);
+						DoKillProcessTree(pid); // 프로세스 트리 종료
+						DoKillRecoveryRansomware(pid); // 파일 복구
 					}
 				}
 			}
@@ -960,6 +1050,47 @@ bool CAntiRansomwareUserDlg::AddEventWriteFile(DWORD pid, CString strPath)
 }
 
 
+bool CAntiRansomwareUserDlg::AddEventDeleteFile(DWORD pid, CString strPath)
+{
+	unsigned int tmpBackupNum = -1;
+	PROCESS_EVENT tmpPE;
+	ITEM_DELETE_FILE tmpIDF;
+	list<ITEM_DELETE_FILE>::reverse_iterator ritorIDF; // delete
+	unsigned int numEvent = m_numDeleteFile++;
+
+	ritorIDF = m_listDeleteFile.rbegin();
+	while (ritorIDF != m_listDeleteFile.rend())
+	{
+		if (pid == ritorIDF->pid && strPath.Compare(ritorIDF->strPath) == 0) {
+			tmpBackupNum = ritorIDF->num_back;
+			ritorIDF->num_back = -1; // 이전 백업 기록 삭제(중복 복구 방지)
+			m_mapProcessBehavior[pid].cntDelete--;
+			break;
+		}
+		ritorIDF++;
+	}
+
+	// 백업 기록 없을 경우
+	if (tmpBackupNum == -1) {
+		tmpBackupNum = AddEventBackupFile(pid, strPath); // 백업 이벤트
+	}
+
+	// Write File Event
+	tmpIDF.num = numEvent;
+	tmpIDF.pid = pid;
+	tmpIDF.num_back = tmpBackupNum;
+	tmpIDF.strPath = strPath;
+	m_listDeleteFile.push_back(tmpIDF);
+
+	// Process Event
+	m_mapProcessBehavior[pid].cntDelete++;
+
+	tmpPE.mode = 3; // delete
+	tmpPE.numEvent = numEvent;
+	m_mapProcessBehavior[pid].stackEventRecord.push(tmpPE);
+}
+
+
 // 파일 백업 이벤트 추가
 unsigned int CAntiRansomwareUserDlg::AddEventBackupFile(DWORD pid, CString strPath)
 {
@@ -1080,14 +1211,14 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	if (size_target == size_backup) {
 		nResult = memcmp(buf_sigTarget, buf_sigBackup, 4);
 		if (nResult != 0) {
-			AddLogList("warning: 파일 시그니처 변조");
+			AddLogList("Warning: 파일 시그니처 변조");
 			fclose(fpTarget);
 			fclose(fpBackup);
 			return true;
 		}
 	}
 	else {
-		AddLogList("warning: 파일 시그니처 제거");
+		AddLogList("Warning: 파일 시그니처 제거");
 		fclose(fpTarget);
 		fclose(fpBackup);
 		return true;
@@ -1120,14 +1251,24 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	return false;
 }
 
-BOOL CAntiRansomwareUserDlg::DoKillProcess(DWORD pid)
-{
-	BOOL bResult;
-	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-	bResult = TerminateProcess(hProcess, 0);
 
-	return bResult;
+bool CAntiRansomwareUserDlg::DoKillRecoveryRansomware(DWORD pid)
+{
+	map<unsigned int, PROCESS_BEHAVIOR>::iterator itor;
+
+	// 행위 데이터 검색
+	for (itor = m_mapProcessBehavior.begin(); itor != m_mapProcessBehavior.end(); ++itor) {
+		if (itor->second.ppid == pid) {
+			RecoveryProcessBehavior(itor->second.pid); // 파일 복구
+			DoKillRecoveryRansomware(itor->second.pid); // 재귀 호출
+		}
+	}
+
+	RecoveryProcessBehavior(pid); // 파일 복구
+
+	return true;
 }
+
 
 bool CAntiRansomwareUserDlg::DoRecoveryFile(unsigned int num_back, CString strPath)
 {
@@ -1253,5 +1394,7 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	CString strTemp;
 	ctr_editTargetPid.GetWindowTextA(strTemp);
-	RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	//RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	//DoKillRecoveryRansomware((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	DoKillProcessTree((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
 }
