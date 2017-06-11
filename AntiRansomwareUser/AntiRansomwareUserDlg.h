@@ -73,7 +73,7 @@ public:
 	void AddLogList(CString msg, bool wTime = false);
 	bool InitMyScanner();
 	static UINT CommunicationMyScanner(LPVOID lpParam);
-	bool RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
+	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	bool RecoveryProcessBehavior(DWORD pid);
 	bool AddEventNewFile(DWORD pid, bool isDirectory, CString strPath);
 	bool AddEventRenameFile(DWORD pid, CString strSrc, CString strDst);

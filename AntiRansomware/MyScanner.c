@@ -645,8 +645,9 @@ BOOLEAN MyCheckFileExt(__inout PFLT_CALLBACK_DATA Data)
 }
 
 
-VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects)
+ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects)
 {
+	ULONG nResult = 0;
 	PFLT_FILE_NAME_INFORMATION nameInfo;
 	PFILE_RENAME_INFORMATION renameInfo = NULL;
 	NTSTATUS status;
@@ -729,6 +730,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 		if (!NT_SUCCESS(status))
 			return;
 	}
+
 	/*
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
@@ -753,7 +755,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			//DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
 			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
-			RFNotifyUserProcess(fltType_PostCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			nResult = RFNotifyUserProcess(fltType_PostCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PreClose:
 			DbgPrint("[Anti-Rs] ScannerPreClose\n");
@@ -763,7 +765,7 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			break;
 		case fltType_PreCleanup:
 			DbgPrint("[Anti-Rs] ScannerPreCleanup\n");
-			RFNotifyUserProcess(fltType_PreCleanup, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			nResult = RFNotifyUserProcess(fltType_PreCleanup, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostCleanup:
 			DbgPrint("[Anti-Rs] ScannerPostCleanup\n");
@@ -783,14 +785,14 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 			//DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
 			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
-			RFNotifyUserProcess(fltType_PreSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			nResult = RFNotifyUserProcess(fltType_PreSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPostSetInformation\n");
 			//DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
 			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
 			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
-			RFNotifyUserProcess(fltType_PostSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
+			nResult = RFNotifyUserProcess(fltType_PostSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		default: 
 			DbgPrint("[Anti-Rs] ############ fltType_is Error... !! ############ \n");
@@ -798,11 +800,14 @@ VOID DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, P
 	}
 
 	FltReleaseFileNameInformation(nameInfo);
+
+	return nResult;
 }
 
 
-BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RELATED_OBJECTS FltObjects, PFLT_FILE_NAME_INFORMATION nameInfo, PFLT_CALLBACK_DATA Data)
+ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RELATED_OBJECTS FltObjects, PFLT_FILE_NAME_INFORMATION nameInfo, PFLT_CALLBACK_DATA Data)
 {
+	ULONG nResult = 0;
 	NTSTATUS status = STATUS_SUCCESS;
 	ULONG replyLength;
 	PSCANNER_NOTIFICATION notification = NULL;
@@ -886,6 +891,15 @@ BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_
 	if (STATUS_SUCCESS == status)
 	{
 		DbgPrint("replyData is %d", ((PSCANNER_REPLY)notification)->SafeToOpen);
+		if (((PSCANNER_REPLY)notification)->cmdType == 1)
+		{
+			nResult = 1;
+			DbgPrint("[Anti-Rs] D E N Y !\n");
+		}
+		else if (((PSCANNER_REPLY)notification)->cmdType == 100) {
+			nResult = 100;
+			DbgPrint("[Anti-Rs] B A C K U P !\n");
+		}
 	}
 
 
@@ -894,7 +908,7 @@ BOOLEAN RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_
 		ExFreePoolWithTag(notification, '2939');
 	}
 
-	return TRUE;
+	return nResult;
 }
 
 

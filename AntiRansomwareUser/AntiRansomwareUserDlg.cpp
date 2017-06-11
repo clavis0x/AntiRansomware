@@ -198,125 +198,6 @@ bool CAntiRansomwareUserDlg::InitMyScanner()
 }
 
 
-inline void WaitG(double dwMillisecond)
-{
-	MSG msg;
-	LARGE_INTEGER   st, ed, freq;
-	double			WaitFrequency;
-	QueryPerformanceFrequency(&freq);
-	WaitFrequency = ((double)dwMillisecond / 1000) * ((double)freq.QuadPart);
-
-	if (freq.QuadPart == 0)
-	{
-		//::SetDlgItemText(hWnd,IDC_EDIT_Status,"Warning! - 고해상도 타이머 지원 안함.");
-		//AddListLog(1, "지원 안함.");
-		return;
-	}
-
-	QueryPerformanceCounter(&st);
-	QueryPerformanceCounter(&ed);
-	while ((double)(ed.QuadPart - st.QuadPart) < WaitFrequency)
-	{
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-		Sleep(1);
-
-		QueryPerformanceCounter(&ed);
-	}
-}
-
-
-BOOL DoKillProcess(DWORD pid)
-{
-	BOOL bResult;
-	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-	bResult = TerminateProcess(hProcess, 0);
-
-	return bResult;
-}
-
-
-BOOL DoKillProcessTree(DWORD pid)
-{
-	CString strTemp;
-	HANDLE handle = NULL;
-	PROCESSENTRY32 pe = { 0 };
-	pe.dwSize = sizeof(PROCESSENTRY32);
-	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-
-	strTemp.Format("■Kill: %d", pid);
-	g_pParent->AddLogList(strTemp);
-	DoKillProcess(pid);
-
-	if (Process32First(handle, &pe))
-	{
-		do
-		{
-			if (pe.th32ParentProcessID == pid) {
-				DoKillProcessTree(pe.th32ProcessID);
-			}
-		} while (Process32Next(handle, &pe));
-	}
-
-	return TRUE;
-}
-
-
-bool GetProcessName(DWORD pid, DWORD *ppid, char *szName)
-{
-	HANDLE handle = NULL;
-	PROCESSENTRY32 pe = { 0 };
-	pe.dwSize = sizeof(PROCESSENTRY32);
-	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (Process32First(handle, &pe))
-	{
-		do
-		{
-			if (pe.th32ProcessID == pid) {
-				strncpy(szName, pe.szExeFile, MAX_PATH);
-				*ppid = pe.th32ParentProcessID;
-				return true;
-			}
-		} while (Process32Next(handle, &pe));
-	}
-
-	return false;
-}
-
-
-DWORD FindRansomwareParantPID(DWORD pid)
-{
-	bool result;
-	bool isFound = false;
-	DWORD prev_pid = pid;
-	DWORD ppid = pid;
-	char szProcessName[MAX_PATH];
-	CString strTemp;
-
-	while (ppid != 0) {
-		result = GetProcessName(pid, &ppid, szProcessName);
-		if (strcmp(szProcessName, "explorer.exe") == 0) {
-			isFound = true;
-			break;
-		}
-		else {
-			prev_pid = pid;
-			pid = ppid;
-		}
-		if (result == false)
-			return false;
-	}
-	if (isFound == false) {
-		return false;
-	}
-
-	return prev_pid;
-}
-
-
 BOOL splitDevicePath(const wchar_t * path,
 	wchar_t * devicename, size_t lenDevicename,
 	wchar_t * dir, size_t lenDir,
@@ -495,6 +376,7 @@ HRESULT indicating the status of thread exit.
 	HRESULT hr;
 	ULONG_PTR key;
 
+	int nResult = 0;
 	CString strMsg;
 
 #pragma warning(push)
@@ -579,7 +461,7 @@ HRESULT indicating the status of thread exit.
 				case fltType_PostCreate:
 					strMsg.Format("===== [%d] fltType_PostCreate =====", notification->ulPID);
 					//g_pParent->AddLogList(strMsg, true);
-					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PreClose:
 					strMsg.Format("===== [%d] fltType_PreClose =====", notification->ulPID);
@@ -592,7 +474,7 @@ HRESULT indicating the status of thread exit.
 				case fltType_PreCleanup:
 					strMsg.Format("===== [%d] fltType_PreCleanup =====", notification->ulPID);
 					//g_pParent->AddLogList(strMsg, true);
-					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PostCleanup:
 					strMsg.Format("===== [%d] fltType_PostCleanup =====", notification->ulPID);
@@ -601,25 +483,27 @@ HRESULT indicating the status of thread exit.
 				case fltType_PreWrite:
 					strMsg.Format("===== [%d] fltType_PreWrite =====", notification->ulPID);
 					//g_pParent->AddLogList(strMsg, true);
-					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PostWrite:
 					strMsg.Format("===== [%d] fltType_PostWrite =====", notification->ulPID);
 					g_pParent->AddLogList(strMsg, true);
-					//g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					//nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PreSetInformation:
 					strMsg.Format("===== [%d] fltType_PreSetInformation =====", notification->ulPID);
 					//g_pParent->AddLogList(strMsg, true);
-					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 				case fltType_PostSetInformation:
 					strMsg.Format("===== [%d] fltType_PostSetInformation =====", notification->ulPID);
 					//g_pParent->AddLogList(strMsg, true);
-					g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
+					nResult = g_pParent->RecordProcessBehavior(notification); // 프로세스 행위 기록
 					break;
 			}
 		}
+
+		replyMessage.Reply.cmdType = nResult; // Command
 
 		hr = FilterReplyMessage(Context->Port,
 			(PFILTER_REPLY_HEADER)&replyMessage,
@@ -831,13 +715,158 @@ main_cleanup:
 }
 
 
-// 프로세스 행위 기록
-bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
+inline void WaitG(double dwMillisecond)
+{
+	MSG msg;
+	LARGE_INTEGER   st, ed, freq;
+	double			WaitFrequency;
+	QueryPerformanceFrequency(&freq);
+	WaitFrequency = ((double)dwMillisecond / 1000) * ((double)freq.QuadPart);
+
+	if (freq.QuadPart == 0)
+	{
+		//::SetDlgItemText(hWnd,IDC_EDIT_Status,"Warning! - 고해상도 타이머 지원 안함.");
+		//AddListLog(1, "지원 안함.");
+		return;
+	}
+
+	QueryPerformanceCounter(&st);
+	QueryPerformanceCounter(&ed);
+	while ((double)(ed.QuadPart - st.QuadPart) < WaitFrequency)
+	{
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		Sleep(1);
+
+		QueryPerformanceCounter(&ed);
+	}
+}
+
+
+BOOL DoKillProcess(DWORD pid)
+{
+	BOOL bResult;
+	HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+	bResult = TerminateProcess(hProcess, 0);
+
+	return bResult;
+}
+
+
+BOOL DoKillProcessTree(DWORD pid)
+{
+	CString strTemp;
+	HANDLE handle = NULL;
+	PROCESSENTRY32 pe = { 0 };
+	pe.dwSize = sizeof(PROCESSENTRY32);
+	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	strTemp.Format("■Kill: %d", pid);
+	g_pParent->AddLogList(strTemp);
+	DoKillProcess(pid);
+
+	if (Process32First(handle, &pe))
+	{
+		do
+		{
+			if (pe.th32ParentProcessID == pid) {
+				DoKillProcessTree(pe.th32ProcessID);
+			}
+		} while (Process32Next(handle, &pe));
+	}
+
+	return TRUE;
+}
+
+
+bool GetProcessName(DWORD pid, DWORD *ppid, char *szName)
+{
+	HANDLE handle = NULL;
+	PROCESSENTRY32 pe = { 0 };
+	pe.dwSize = sizeof(PROCESSENTRY32);
+	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (Process32First(handle, &pe))
+	{
+		do
+		{
+			if (pe.th32ProcessID == pid) {
+				strncpy(szName, pe.szExeFile, MAX_PATH);
+				*ppid = pe.th32ParentProcessID;
+				return true;
+			}
+		} while (Process32Next(handle, &pe));
+	}
+
+	return false;
+}
+
+
+DWORD FindRansomwareParantPID(DWORD pid)
 {
 	bool result;
+	bool isFound = false;
+	DWORD prev_pid = pid;
+	DWORD ppid = pid;
+	char szProcessName[MAX_PATH];
+	CString strTemp;
+
+	while (ppid != 0) {
+		result = GetProcessName(pid, &ppid, szProcessName);
+		if (strcmp(szProcessName, "explorer.exe") == 0) {
+			isFound = true;
+			break;
+		}
+		else {
+			prev_pid = pid;
+			pid = ppid;
+		}
+		if (result == false)
+			return false;
+	}
+	if (isFound == false) {
+		return false;
+	}
+
+	return prev_pid;
+}
+
+
+int GetPermissionDirectory(DWORD pid, CString strPath)
+{
+	int nPos;
+	CString strSafePath;
+	DWORD dwProcId;
+
+	// 백업 디렉토리 설정
+	nPos = strPath.Find('\\');
+	if (nPos == -1)
+		return 0;
+
+	strSafePath.Format("%s%s%s", strPath.Left(nPos), g_szBackupPath);
+
+	if (strPath.Find(strSafePath, 0) >= 0) {
+		GetWindowThreadProcessId(hWnd, &dwProcId);
+		if (pid != dwProcId) {
+			g_pParent->AddLogList("!! 권한 없음 !!");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
+// 프로세스 행위 기록
+int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
+{
+	bool result;
+	int nResult;
+	int nReturn = 0;
 	CString strTemp;
 	CString strBackupPath;
-	wchar_t szFilePath[MAX_PATH];
+	wchar_t szFilePath[MAX_PATH] = { 0 };
 	PROCESS_EVENT tmpPE;
 	unsigned int numEvent;
 	DWORD pid;
@@ -884,6 +913,13 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 		case fltType_PostCreate:
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
+			/*
+			nResult = GetPermissionDirectory(notification->ulPID, (CString)szFilePath);
+			if (nResult != 0) {
+				nReturn = 1; // 권한 없음
+				break;
+			}
+			*/
 
 			if (notification->CreateOptions == 1) {
 				strTemp.Format("[신규] %s: %s", (notification->isDir)? "Dir" : "File", (CString)szFilePath);
@@ -950,11 +986,11 @@ bool CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notific
 
 			strTemp.Format("[삭제] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
 			AddLogList(strTemp);
+			nReturn = 100; // Backup!
 			break;
 	}
 
-
-	return true;
+	return nReturn;
 }
 
 
@@ -1088,6 +1124,8 @@ bool CAntiRansomwareUserDlg::AddEventDeleteFile(DWORD pid, CString strPath)
 	tmpPE.mode = 3; // delete
 	tmpPE.numEvent = numEvent;
 	m_mapProcessBehavior[pid].stackEventRecord.push(tmpPE);
+
+	return true;
 }
 
 
@@ -1144,6 +1182,7 @@ CString CAntiRansomwareUserDlg::GetBackupFilePath(CString strPath)
 
 bool CAntiRansomwareUserDlg::DoBackupFile(CString strPath)
 {
+	int nResult;
 	DWORD nFileSize;
 	CString strNewDir;
 	CString strNewPath;
@@ -1165,7 +1204,7 @@ bool CAntiRansomwareUserDlg::DoBackupFile(CString strPath)
 
 	// 파일 백업 - 덮어쓰기 안함
 	AddLogList("Backup: " + strNewPath);
-	CopyFile(strPath, strNewPath, TRUE);
+	nResult = CopyFile(strPath, strNewPath, TRUE);
 
 	return true;
 }

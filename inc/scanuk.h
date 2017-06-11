@@ -57,6 +57,7 @@ typedef struct _USER_NOTIFICATION {
 typedef struct _SCANNER_REPLY {
 
     BOOLEAN SafeToOpen;
+	UCHAR cmdType; // 0: nop, 1: block, 100: backup
     
 } SCANNER_REPLY, *PSCANNER_REPLY;
 
