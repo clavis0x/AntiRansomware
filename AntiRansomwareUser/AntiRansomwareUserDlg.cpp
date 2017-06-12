@@ -9,6 +9,7 @@
 
 
 const char* g_szBackupPath = "\\_SafeBackup"; // 백업 폴더
+const char* g_szBackupExt = "txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar"; // 보호 파일 확장자
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -21,6 +22,9 @@ CAntiRansomwareUserDlg *g_pParent;
 
 // Rename용 Driver Letter (임시)
 wchar_t szLastDriveLetter[8];
+
+// Backup용 Device Name (임시)
+wchar_t g_szDeviceName[128];
 
 UCHAR FoulString[] = "foul";
 
@@ -219,6 +223,9 @@ BOOL splitDevicePath(const wchar_t * path,
 	//STEP 1: 장치명 분리.. \Device\HarddiskVolume2
 	//첫번째 \Device\를 넘기위해 pPos +8 해줌
 	pPos = wcschr(pPos + 8, L'\\');
+	if (pPos == NULL) {
+		return FALSE;
+	}
 	if (devicename != NULL && lenDevicename > 0)
 		wcsncpy_s(devicename, lenDevicename, path, pPos - path);
 
@@ -264,11 +271,11 @@ BOOL GetDeviceNameToDriveLetter(const wchar_t * pDevicePath, wchar_t * bufDriveL
 
 BOOL ConvertDevicePathToDrivePath(const wchar_t * pDevicePath, wchar_t *bufPath, size_t bufPathLen)
 {
-	wchar_t szDeviceName[128];
-	wchar_t szDirPath[MAX_PATH];
-	wchar_t szFileName[MAX_PATH];
-	wchar_t szExt[32];
-	wchar_t szDriveLetter[8];
+	wchar_t szDeviceName[128] = { 0 };
+	wchar_t szDirPath[MAX_PATH] = { 0 };
+	wchar_t szFileName[MAX_PATH] = { 0 };
+	wchar_t szExt[32] = { 0 };
+	wchar_t szDriveLetter[8] = { 0 };
 
 	if (pDevicePath == NULL || bufPath == NULL || bufPathLen <= 0)
 		return FALSE;
@@ -283,11 +290,17 @@ BOOL ConvertDevicePathToDrivePath(const wchar_t * pDevicePath, wchar_t *bufPath,
 	//SETP 2 : 디바이스 명을 드라이브 레터로 변경.. 
 	//ex : \Device\HarddiskVolume2\ --> C:\
 
+	wcscpy(g_szDeviceName, szDeviceName); // backup용 (임시)
+
 	if (GetDeviceNameToDriveLetter(szDeviceName, szDriveLetter, 8) == FALSE)
 		return FALSE;
 
 	// Reneme용 Drive Letter 저장 (임시)
 	memcpy(szLastDriveLetter, szDriveLetter, sizeof(szLastDriveLetter));
+
+	// 가끔 알수없는 경로 때문에.. ex. DR
+	if (wcslen(szDriveLetter) == 0 || wcslen(szDirPath) == 0)
+		return FALSE;
 
 	//STEP 3 : 경로 재조립.. 
 	StringCchPrintfW(bufPath, bufPathLen, L"%s%s%s%s", szDriveLetter, szDirPath, szFileName, szExt);
@@ -504,6 +517,22 @@ HRESULT indicating the status of thread exit.
 		}
 
 		replyMessage.Reply.cmdType = nResult; // Command
+		if (nResult == 100) { // Backup
+			CString strBackupPath;
+			int nPos;
+			wchar_t szFilePath[MAX_FILE_PATH] = { 0 };
+			wchar_t szBackupPath[MAX_FILE_PATH] = { 0 };
+			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
+				break;
+
+			strBackupPath = g_pParent->GetBackupFilePath((CString)szFilePath);
+			nPos = strBackupPath.Find('\\');
+			if (nPos >= 0) {
+				strBackupPath.Format("%S%s", g_szDeviceName, strBackupPath.Mid(nPos));
+				g_pParent->AddLogList(strBackupPath);
+			}
+			memcpy(replyMessage.Reply.Contents, (const char *)strBackupPath, MAX_FILE_PATH);
+		}
 
 		hr = FilterReplyMessage(Context->Port,
 			(PFILTER_REPLY_HEADER)&replyMessage,
@@ -834,7 +863,7 @@ DWORD FindRansomwareParantPID(DWORD pid)
 }
 
 
-int GetPermissionDirectory(DWORD pid, CString strPath)
+int GetPermissionDirectory(CString strPath, DWORD pid = 0)
 {
 	int nPos;
 	CString strSafePath;
@@ -845,15 +874,22 @@ int GetPermissionDirectory(DWORD pid, CString strPath)
 	if (nPos == -1)
 		return 0;
 
-	strSafePath.Format("%s%s%s", strPath.Left(nPos), g_szBackupPath);
+	strSafePath.Format("%s%s", strPath.Left(nPos), g_szBackupPath);
 
 	if (strPath.Find(strSafePath, 0) >= 0) {
 		GetWindowThreadProcessId(hWnd, &dwProcId);
 		if (pid != dwProcId) {
-			g_pParent->AddLogList("!! 권한 없음 !!");
-			return 1;
+			//g_pParent->AddLogList("!! 권한 없음 !!");
+			return 3;
+		}
+		else {
+			return 2;
 		}
 	}
+	else {
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -866,7 +902,7 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 	int nReturn = 0;
 	CString strTemp;
 	CString strBackupPath;
-	wchar_t szFilePath[MAX_PATH] = { 0 };
+	wchar_t szFilePath[MAX_FILE_PATH] = { 0 };
 	PROCESS_EVENT tmpPE;
 	unsigned int numEvent;
 	DWORD pid;
@@ -888,8 +924,7 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 			} while (Process32Next(handle, &pe));
 		}
 
-		g_pParent->AddLogList((CString)pe.szExeFile, false);
-		strTemp.Format("map 생성: %d", notification->ulPID);
+		strTemp.Format("map 생성: [%d] %s", notification->ulPID, (CString)pe.szExeFile);
 		AddLogList(strTemp, true);
 		
 		tmpPB.cntCreate = 0;
@@ -913,13 +948,10 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 		case fltType_PostCreate:
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
-			/*
-			nResult = GetPermissionDirectory(notification->ulPID, (CString)szFilePath);
-			if (nResult != 0) {
-				nReturn = 1; // 권한 없음
+
+			nResult = GetPermissionDirectory((CString)szFilePath);
+			if (nResult > 1)
 				break;
-			}
-			*/
 
 			if (notification->CreateOptions == 1) {
 				strTemp.Format("[신규] %s: %s", (notification->isDir)? "Dir" : "File", (CString)szFilePath);
@@ -927,23 +959,31 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 				AddEventNewFile(notification->ulPID, notification->isDir, (CString)szFilePath); // Add Event
 			}
 			else if (notification->CreateOptions == 2) {
+				// Process Event
+				m_mapProcessBehavior[notification->ulPID].cntWrite++;
+
 				strTemp.Format("[덮어쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
 				AddLogList(strTemp);
+				if(DoBackupFile((CString)szFilePath)) // 파일 백업
+					nReturn = 100; // Backup!
 			}
 			else {
 				if(!notification->isDir){
-					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
-					AddLogList(strTemp);
-					DoBackupFile((CString)szFilePath); // 파일 백업
-
 					// Process Event
 					m_mapProcessBehavior[notification->ulPID].cntWrite++;
+
+					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+					AddLogList(strTemp);
+					if (DoBackupFile((CString)szFilePath)) // 파일 백업
+						nReturn = 100; // Backup!
 				}
 			}
 			break;
 		case fltType_PreCleanup:
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
+			strTemp.Format("[Cleanup] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
+			AddLogList(strTemp);
 			if (!notification->isDir){
 				result = DoCheckRansomware((CString)szFilePath); // 랜섬웨어 감염 확인
 				if (result == true) { // 파일 변조됨
@@ -984,9 +1024,17 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
 
+			nResult = GetPermissionDirectory((CString)szFilePath, notification->ulPID);
+			if (nResult == 3) {
+				nReturn = 1; // 권한 없음
+				break;
+			}
+
 			strTemp.Format("[삭제] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
 			AddLogList(strTemp);
-			nReturn = 100; // Backup!
+			AddEventDeleteFile(notification->ulPID, (CString)szFilePath); // Add Event
+			if (DoBackupFile((CString)szFilePath)) // 파일 백업
+				nReturn = 100; // Backup!
 			break;
 	}
 
@@ -1186,14 +1234,28 @@ bool CAntiRansomwareUserDlg::DoBackupFile(CString strPath)
 	DWORD nFileSize;
 	CString strNewDir;
 	CString strNewPath;
-	HANDLE hFile = CreateFile(strPath, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile;
+
+	nResult = GetPermissionDirectory(strPath);
+	if (nResult > 1){
+		AddLogList("백업 보류: Safe Directory");
+		return false;
+	}
+	/*
+	hFile = CreateFile(strPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE){
+		AddLogList("백업 실패: INVALID_HANDLE_VALUE");
+		return false;
+	}
 
 	nFileSize = GetFileSize(hFile, NULL);
 	CloseHandle(hFile);
 
-	if (nFileSize < 10)
-		return false; // 백업 안함
-
+	if (nFileSize < 10 || nFileSize > 20971520){
+		AddLogList("백업 보류: file size");
+		return false; // 백업 안함 (10byte 미만 or 20MB 초과)
+	}
+	*/
 	// 백업 경로 구하기
 	strNewPath = GetBackupFilePath(strPath);
 
@@ -1202,12 +1264,66 @@ bool CAntiRansomwareUserDlg::DoBackupFile(CString strPath)
 	PathRemoveFileSpec((LPSTR)(LPCTSTR)strNewDir);
 	CreateFolder(strNewDir);
 
+	// 미니필터에서 백업
+	/*
 	// 파일 백업 - 덮어쓰기 안함
 	AddLogList("Backup: " + strNewPath);
 	nResult = CopyFile(strPath, strNewPath, TRUE);
+	*/
 
 	return true;
 }
+
+
+float entropy_calc(long byte_count[], int length)
+{
+	float entropy = 0.0;
+	float count;
+	int i;
+
+	/* entropy calculation */
+	for (i = 0; i < 256; i++) // 1byte? #define SIZE 256
+	{
+		if (byte_count[i] != 0)
+		{
+			count = (float)byte_count[i] / (float)length;
+			entropy += -count * log2f(count);
+		}
+	}
+	return entropy;
+}
+
+
+float GetFileEntropy(FILE *inFile, int offset)
+{
+	int             i;
+	int             j;
+	int             n;			// Bytes read by fread;
+	int             length = 0;	// length of file
+	float           count;
+	float           entropy;
+	long            byte_count[256];
+	unsigned char   buffer[1024];
+
+	memset(byte_count, 0, sizeof(long) * 256);
+
+	fseek(inFile, offset, SEEK_SET);
+
+	/* Read the whole file in parts of 1024 */
+	while ((n = fread(buffer, 1, 1024, inFile)) != 0)
+	{
+		/* Add the buffer to the byte_count */
+		for (i = 0; i < n; i++)
+		{
+			byte_count[(int)buffer[i]]++;
+			length++;
+		}
+	}
+	fclose(inFile);
+
+	return entropy_calc(byte_count, length);;
+}
+
 
 bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 {
@@ -1223,22 +1339,26 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	unsigned char buf_sigBackup[4];
 	unsigned int size_target;
 	unsigned int size_backup;
+	float entropy_target;
+	float entropy_backup;
+	bool isChangeEntropy = false;
+	CString strTemp;
 
 	// 백업 경로 구하기
 	strBackupPath = GetBackupFilePath(strPath);
 
 	// 백업 파일 존재 확인
 	if (PathFileExists(strBackupPath) == FALSE) {
-		//AddLogList("백업 파일 없음: " + strBackupPath);
+		AddLogList("백업 파일 없음: " + strBackupPath);
 		return false;
 	}
 
 	// 비교 파일 열기
-	fpTarget = fopen((LPSTR)(LPCTSTR)strPath, "r");
+	fpTarget = fopen((LPSTR)(LPCTSTR)strPath, "rb");
 	if (fpTarget == NULL)
 		return false;
 
-	fpBackup = fopen((LPSTR)(LPCTSTR)strBackupPath, "r");
+	fpBackup = fopen((LPSTR)(LPCTSTR)strBackupPath, "rb");
 	if (fpBackup == NULL){
 		fclose(fpTarget);
 		return false;
@@ -1264,6 +1384,23 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	}
 
 	// STEP2: 파일 정보 엔트로피 분석(text)
+	entropy_target = GetFileEntropy(fpTarget, 0);
+	entropy_backup = GetFileEntropy(fpBackup, 0);
+
+	if (entropy_backup < 6.5) {
+		if (entropy_target > 7.0)
+			isChangeEntropy = true;
+	}
+	else if (entropy_backup < 7.5) {
+		if (entropy_target > 7.9)
+			isChangeEntropy = true;
+	}
+	strTemp.Format("엔트로피 차: %02.5f, %s", abs(entropy_target - entropy_backup), (isChangeEntropy)? "변화됨" : "변화 없음");
+	AddLogList(strTemp);
+	
+	if(isChangeEntropy){
+		return true;
+	}
 
 	// STEP3: ssdeep? (binary)
 
@@ -1283,7 +1420,7 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 		ritorIBF++;
 	}
 	if (isDeleteBackupFile == true) {
-		AddLogList("백업 파일 삭제" + strBackupPath);
+		AddLogList("백업 파일 삭제: " + strBackupPath);
 		DeleteFile(strBackupPath); // 원본 파일 삭제
 	}
 
@@ -1349,6 +1486,7 @@ bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
 	list<ITEM_NEW_FILE>::reverse_iterator ritorINF; // new
 	list<ITEM_RENAME_FILE>::reverse_iterator ritorIRF; // rename
 	list<ITEM_WRITE_FILE>::reverse_iterator ritorIWF; // write
+	list<ITEM_DELETE_FILE>::reverse_iterator ritorIDF; // delete
 	ITEM_NEW_FILE tmpINF;
 	CString strTemp;
 
@@ -1358,10 +1496,11 @@ bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
 	strTemp.Format("========== 행위 복구: [%d] %s ==========", pid, m_mapProcessBehavior[pid].strName);
 	AddLogList(strTemp, true);
 
-	strTemp.Format("create: %d / rename: %d / write: %d(%d)", m_mapProcessBehavior[pid].cntCreate
-															, m_mapProcessBehavior[pid].cntRename
-															, m_mapProcessBehavior[pid].cntWrite
-															, m_mapProcessBehavior[pid].cntWrite_sp
+	strTemp.Format("create: %d / rename: %d / write: %d(%d) / delete: %d", m_mapProcessBehavior[pid].cntCreate
+																		 , m_mapProcessBehavior[pid].cntRename
+																		 , m_mapProcessBehavior[pid].cntWrite
+																		 , m_mapProcessBehavior[pid].cntWrite_sp
+																		 , m_mapProcessBehavior[pid].cntDelete
 	);
 	AddLogList(strTemp, true);
 	
@@ -1422,6 +1561,24 @@ bool CAntiRansomwareUserDlg::RecoveryProcessBehavior(DWORD pid)
 					ritorIWF++;
 				}
 				break;
+			case 3: // 파일 삭제 -> 파일 복구
+				ritorIDF = m_listDeleteFile.rbegin();
+				while (ritorIDF != m_listDeleteFile.rend())
+				{
+					if (tmpPE.numEvent == ritorIDF->num) {
+						if (ritorIDF->num_back != -1) {
+							DoRecoveryFile(ritorIDF->num_back, ritorIDF->strPath); // 파일 복구
+						}
+						else {
+							AddLogList("Pass: " + ritorIWF->strPath, true); // Pass
+						}
+						list<ITEM_DELETE_FILE>::iterator itorIDF = ritorIDF.base();
+						m_listDeleteFile.erase(--itorIDF);
+						break;
+					}
+					ritorIDF++;
+				}
+				break;
 		}
 	}
 
@@ -1433,7 +1590,8 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	CString strTemp;
 	ctr_editTargetPid.GetWindowTextA(strTemp);
-	//RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
 	//DoKillRecoveryRansomware((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
-	DoKillProcessTree((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	//DoKillProcessTree((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
+	//DeleteFile("C:\\_SafeBackup\\test.txt");
 }

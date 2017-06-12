@@ -20,6 +20,7 @@ Kernel mode
 --*/
 
 #include <fltKernel.h>
+#include <Ntstrsafe.h>
 #include <dontuse.h>
 #include <suppress.h>
 #include "scanuk.h"
@@ -30,6 +31,7 @@ ULONG g_userPID = 0; // User-Process PID
 // Underline --
 #define PagedPool 1
 typedef PVOID PSECURITY_DESCRIPTOR;
+#define FILE_POOL_TAG 'cfm'
 
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
@@ -645,6 +647,165 @@ BOOLEAN MyCheckFileExt(__inout PFLT_CALLBACK_DATA Data)
 }
 
 
+NTSTATUS
+CopyFile(
+	PFLT_CALLBACK_DATA Data,
+	PCFLT_RELATED_OBJECTS FltObjects,
+	PUNICODE_STRING pCompleteFileName
+)
+{
+	NTSTATUS status;
+	UNICODE_STRING tempDeletedFilePath;
+	OBJECT_ATTRIBUTES tempDeletedObject;
+	IO_STATUS_BLOCK ioStatusTempDeleted;
+	LARGE_INTEGER allocate;
+	FILE_STANDARD_INFORMATION fileStandardInformation;
+	HANDLE tempDeletedHandle;
+	ULONG returnedLength;
+	allocate.QuadPart = 0x10000;
+
+
+
+	InitializeObjectAttributes(
+		&tempDeletedObject,
+		pCompleteFileName,
+		OBJ_CASE_INSENSITIVE,
+		NULL,
+		NULL
+	);
+	status = FltQueryInformationFile(
+		FltObjects->Instance,
+		Data->Iopb->TargetFileObject,
+		&fileStandardInformation,
+		sizeof(FILE_STANDARD_INFORMATION),
+		FileStandardInformation,
+		&returnedLength
+	);
+	if (NT_SUCCESS(status))
+	{
+		allocate.QuadPart = fileStandardInformation.AllocationSize.QuadPart;
+	}
+	else {
+		DbgPrint("[Anti-Rs] CaptureFileMonitor: ERROR - Could not get files allocation size\n");
+		return status;
+	}
+
+	status = FltCreateFile(
+		FltObjects->Filter,
+		NULL,
+		&tempDeletedHandle,
+		GENERIC_WRITE,
+		&tempDeletedObject,
+		&ioStatusTempDeleted,
+		&allocate,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		FILE_CREATE,
+		FILE_NON_DIRECTORY_FILE,
+		NULL,
+		0,
+		0
+	);
+
+	if (NT_SUCCESS(status))
+	{
+		PVOID handleFileObject;
+		PVOID pFileBuffer;
+		LARGE_INTEGER offset;
+
+		ULONG bytesRead = 0;
+		ULONG bytesWritten = 0;
+		offset.QuadPart = 0;
+		status = ObReferenceObjectByHandle(
+			tempDeletedHandle,
+			0,
+			NULL,
+			KernelMode,
+			&handleFileObject,
+			NULL);
+		if (!NT_SUCCESS(status))
+		{
+			DbgPrint("[Anti-Rs] CaptureFileMonitor: ERROR - ObReferenceObjectByHandle - FAILED - %08x\n", status);
+			return status;
+		}
+
+		pFileBuffer = ExAllocatePoolWithTag(NonPagedPool, 65536, FILE_POOL_TAG);
+
+		if (pFileBuffer != NULL)
+		{
+			ObReferenceObject(Data->Iopb->TargetFileObject);
+			do {
+				IO_STATUS_BLOCK IoStatusBlock;
+				bytesWritten = 0;
+				status = FltReadFile(
+					FltObjects->Instance,
+					Data->Iopb->TargetFileObject,
+					&offset,
+					65536,
+					pFileBuffer,
+					FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
+					&bytesRead,
+					NULL,
+					NULL
+				);
+
+				if (NT_SUCCESS(status) && bytesRead > 0)
+				{
+					/* You can't use FltWriteFile here */
+					/* Instance may not be the same instance we want to write to eg a
+					flash drive writing a file to a ntfs partition */
+					status = ZwWriteFile(
+						tempDeletedHandle,
+						NULL,
+						NULL,
+						NULL,
+						&IoStatusBlock,
+						pFileBuffer,
+						bytesRead,
+						&offset,
+						NULL
+					);
+					if (NT_SUCCESS(status))
+					{
+						//DbgPrint("WriteFile: FltReadFile - %08x\n", status);
+					}
+					/*
+					status = FltWriteFile(
+					FltObjects->Instance,
+					handleFileObject,
+					&offset,
+					bytesRead,
+					pFileBuffer,
+					FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
+					&bytesWritten,
+					NULL,
+					NULL
+					);
+					*/
+				}
+				else {
+					//DbgPrint("CopyFile: FltReadFile - %08x\n", status);
+					break;
+				}
+				offset.QuadPart += bytesRead;
+			} while (bytesRead == 65536);
+			ObDereferenceObject(Data->Iopb->TargetFileObject);
+			ExFreePoolWithTag(pFileBuffer, FILE_POOL_TAG);
+		}
+		ObDereferenceObject(handleFileObject);
+		FltClose(tempDeletedHandle);
+	}
+	else {
+		if (status != STATUS_OBJECT_NAME_COLLISION)
+		{
+			DbgPrint("[Anti-Rs] CaptureFileMonitor: ERROR - FltCreateFile FAILED - %08x\n", status);
+			return status;
+		}
+	}
+	return STATUS_SUCCESS;
+}
+
+
 ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects)
 {
 	ULONG nResult = 0;
@@ -654,6 +815,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 	wchar_t * pMytestPath = NULL;
 	wchar_t * pMytestPath2 = NULL;
 	BOOLEAN isDelete = FALSE;
+	BOOLEAN isDirectory;
 
 	struct {
 		HANDLE RootDirectory;
@@ -670,7 +832,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 		}
 	}
 
-	if(!isDelete){
+	if (!isDelete) {
 		//Write로 접근하는 정보만 출력.. 
 		if (FltObjects->FileObject->WriteAccess != 1) {
 
@@ -691,8 +853,11 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 
 	/*
 	//확장자부터 확인하자.. 로그가 너무 많이 나옴.. 
-	if (MyCheckFileExt(Data) == FALSE)
-		return;
+	FltIsDirectory(Data->Iopb->TargetFileObject, FltObjects->Instance, &isDirectory);
+	if (!isDirectory){
+		if (MyCheckFileExt(Data) == FALSE)
+			return;
+	}
 	*/
 
 	//step 1 : 파일명 구하기.. 
@@ -731,7 +896,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			return;
 	}
 
-	/*
+
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
 	if (pMytestPath == NULL) {
@@ -742,7 +907,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			return;
 		}
 	}
-	*/
+
 
 	// User Process에게 통보
 	switch (nFltType)
@@ -771,7 +936,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			DbgPrint("[Anti-Rs] ScannerPostCleanup\n");
 			break;
 		case fltType_PreWrite:
-			DbgPrint("[Anti-Rs] ScannerPreWrite\n");
+			//DbgPrint("[Anti-Rs] ScannerPreWrite\n");
 			//if (Data->Iopb->MajorFunction == IRP_MJ_WRITE && Data->Iopb->Parameters.Write.Length > 0 && FlagOn(FltObjects->FileObject->Flags, FO_FILE_MODIFIED))
 			//	RFNotifyUserProcess(fltType_PreWrite, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
@@ -809,9 +974,11 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 {
 	ULONG nResult = 0;
 	NTSTATUS status = STATUS_SUCCESS;
+	NTSTATUS status22 = STATUS_SUCCESS;
 	ULONG replyLength;
 	PSCANNER_NOTIFICATION notification = NULL;
 	BOOLEAN isDirectory;
+	LARGE_INTEGER li_fileSize;
 
 	//DbgPrint("fltType is %d, length = %d , path = %S , AND size is %d\n",fltType,pathLength,pPath, sizeof( SCANNER_NOTIFICATION ));
 
@@ -850,6 +1017,8 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 		else if (Data->IoStatus.Information == FILE_OVERWRITTEN)
 		{
 			notification->CreateOptions = 2;
+			//FsRtlGetFileSize(FltObjects->FileObject, &li_fileSize);
+			//DbgPrint("[Anti-Rs] ★ Size: %llu \n", li_fileSize);
 		}
 	}
 
@@ -859,13 +1028,8 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 		notification->isDir = 1;
 	else
 		notification->isDir = 0;
-	/*
-	if (Data->Iopb->Parameters.Create.Options & FILE_DIRECTORY_FILE)
-		notification->isDir = 1;
-	else
-		notification->isDir = 0;
-	*/
 
+	// Delete mode
 	notification->modeDelete = 0;
 	if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass == FileDispositionInformation)
 	{
@@ -875,7 +1039,7 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 			notification->modeDelete = 1;
 		}
 	}
-	
+
 	//notification->Contents 맨뒤에 널처리 해준다. 
 	*(wchar_t*)&notification->Contents[notification->BytesToScan] = L'\0';
 
@@ -897,8 +1061,29 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 			DbgPrint("[Anti-Rs] D E N Y !\n");
 		}
 		else if (((PSCANNER_REPLY)notification)->cmdType == 100) {
+			CHAR szPath[1024] = { 0 };
+			ANSI_STRING ansiStr;
+			UNICODE_STRING backupFilePath;
+			unsigned int pathLen;
 			nResult = 100;
 			DbgPrint("[Anti-Rs] B A C K U P !\n");
+
+			RtlInitAnsiString(&ansiStr, ((PSCANNER_REPLY)notification)->Contents);
+
+			backupFilePath.Length = 0;
+			backupFilePath.MaximumLength = SCANNER_READ_BUFFER_SIZE;
+			backupFilePath.Buffer = ExAllocatePoolWithTag(NonPagedPool, backupFilePath.MaximumLength, FILE_POOL_TAG);
+			RtlZeroMemory(backupFilePath.Buffer, backupFilePath.MaximumLength);
+
+			RtlAnsiStringToUnicodeString(&backupFilePath, &ansiStr, FALSE);
+
+			//RtlInitUnicodeString(&backupFilePath, ((PSCANNER_REPLY)notification)->Contents);
+			DbgPrint("[Anti-Rs] Path: %wZ", &backupFilePath);
+			CopyFile(Data, FltObjects, &backupFilePath);
+			//DbgPrint("[Anti-Rs] Path: %s", szPath);
+
+			if (backupFilePath.Buffer != NULL)
+				ExFreePoolWithTag(backupFilePath.Buffer, FILE_POOL_TAG);
 		}
 	}
 
@@ -1805,8 +1990,14 @@ ScannerPostSetInformation(
 	PFLT_FILE_NAME_INFORMATION realNameInfo = NULL;
 	NTSTATUS status;
 	BOOLEAN safeToOpen, scanFile;
+	ULONG nResult;
 
-	DbgPrintInformation(fltType_PostSetInformation, Data, FltObjects);
+	nResult = DbgPrintInformation(fltType_PostSetInformation, Data, FltObjects);
+	if(nResult == 1){
+		// 권한 없음
+		//Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+		//Data->IoStatus.Information = 0;
+	}
 
 	// Sample
 	/*

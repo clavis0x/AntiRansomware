@@ -29,6 +29,7 @@ const PWSTR ScannerPortName = L"\\ScannerPort";
 
 
 #define SCANNER_READ_BUFFER_SIZE   1024
+#define MAX_FILE_PATH 1024
 
 typedef struct _SCANNER_NOTIFICATION {
     //rename을 위해 다른 정보들 추가 해야함.
@@ -58,6 +59,7 @@ typedef struct _SCANNER_REPLY {
 
     BOOLEAN SafeToOpen;
 	UCHAR cmdType; // 0: nop, 1: block, 100: backup
+	UCHAR Contents[SCANNER_READ_BUFFER_SIZE];
     
 } SCANNER_REPLY, *PSCANNER_REPLY;
 

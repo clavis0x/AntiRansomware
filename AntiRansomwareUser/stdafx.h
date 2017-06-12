@@ -38,6 +38,7 @@
 #include <scanuk.h>
 #include <fltuser.h>
 #include <strsafe.h>
+#include <assert.h>
 
 #include <mmSystem.h>
 #include <tlhelp32.h>
