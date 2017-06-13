@@ -893,6 +893,18 @@ int GetPermissionDirectory(CString strPath, DWORD pid = 0)
 	return 0;
 }
 
+bool RefreshDesktopDirectory()
+{
+	char szPath[1024];
+	LPITEMIDLIST pItemIDList;
+	SHGetSpecialFolderLocation(GetDesktopWindow(), CSIDL_DESKTOP, &pItemIDList);
+	SHGetPathFromIDList(pItemIDList, szPath);
+	
+	// 바탕화면 새로고침
+	SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH | SHCNF_FLUSHNOWAIT, szPath, NULL);
+
+	return true;
+}
 
 // 프로세스 행위 기록
 int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
@@ -949,11 +961,10 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
 
-			nResult = GetPermissionDirectory((CString)szFilePath);
-			if (nResult > 1)
-				break;
-
 			if (notification->CreateOptions == 1) {
+				nResult = GetPermissionDirectory((CString)szFilePath);
+				if (nResult > 1)
+					break;
 				strTemp.Format("[신규] %s: %s", (notification->isDir)? "Dir" : "File", (CString)szFilePath);
 				AddLogList(strTemp);
 				AddEventNewFile(notification->ulPID, notification->isDir, (CString)szFilePath); // Add Event
@@ -982,6 +993,7 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 		case fltType_PreCleanup:
 			if (ConvertDevicePathToDrivePath((wchar_t*)notification->Contents, szFilePath, MAX_PATH) == FALSE)
 				break;
+
 			strTemp.Format("[Cleanup] %s: %s", (notification->isDir) ? "Dir" : "File", (CString)szFilePath);
 			AddLogList(strTemp);
 			if (!notification->isDir){
@@ -997,6 +1009,7 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 						pid = FindRansomwareParantPID(notification->ulPID);
 						DoKillProcessTree(pid); // 프로세스 트리 종료
 						DoKillRecoveryRansomware(pid); // 파일 복구
+						RefreshDesktopDirectory();
 					}
 				}
 			}
@@ -1303,14 +1316,14 @@ float GetFileEntropy(FILE *inFile, int offset)
 	float           count;
 	float           entropy;
 	long            byte_count[256];
-	unsigned char   buffer[1024];
+	unsigned char   buffer[10240];
 
 	memset(byte_count, 0, sizeof(long) * 256);
 
 	fseek(inFile, offset, SEEK_SET);
 
 	/* Read the whole file in parts of 1024 */
-	while ((n = fread(buffer, 1, 1024, inFile)) != 0)
+	while ((n = fread(buffer, 1, 10240, inFile)) != 0)
 	{
 		/* Add the buffer to the byte_count */
 		for (i = 0; i < n; i++)
@@ -1355,11 +1368,14 @@ bool CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 
 	// 비교 파일 열기
 	fpTarget = fopen((LPSTR)(LPCTSTR)strPath, "rb");
-	if (fpTarget == NULL)
+	if (fpTarget == NULL){
+		AddLogList("파일 열기 실패 : fpTarget");
 		return false;
+	}
 
 	fpBackup = fopen((LPSTR)(LPCTSTR)strBackupPath, "rb");
 	if (fpBackup == NULL){
+		AddLogList("파일 열기 실패 : fpBackup");
 		fclose(fpTarget);
 		return false;
 	}
@@ -1593,5 +1609,21 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
 	RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
 	//DoKillRecoveryRansomware((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
 	//DoKillProcessTree((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
-	//DeleteFile("C:\\_SafeBackup\\test.txt");
+	//DeleteFile("F:\MyTest\\test - 복사본.txt");
+	/*
+	FILE* fp;
+	float ent;
+
+	fp = fopen("F:\\text.xxx", "rb");
+	if (fp == NULL)
+		return;
+
+	ent = GetFileEntropy(fp, 0);
+
+	strTemp.Format("%02.5f", ent);
+	AddLogList(strTemp);
+
+	fclose(fp);
+	*/
+
 }

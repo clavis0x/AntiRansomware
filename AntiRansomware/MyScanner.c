@@ -896,7 +896,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			return;
 	}
 
-
+	/*
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
 	if (pMytestPath == NULL) {
@@ -907,6 +907,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			return;
 		}
 	}
+	*/
 
 
 	// User Process에게 통보
