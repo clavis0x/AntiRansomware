@@ -925,8 +925,9 @@ int CAntiRansomwareUserDlg::GetPermissionDirectory(CString strPath, DWORD pid)
 			}
 			LeaveCriticalSection(&m_csFileQueue);
 			if (nResult == 3) {
-				strTemp.Format("!! 권한 없음(Scheduled) - Wait...(%d) !! : %s", i, strPath);
-				g_pParent->AddLogList(strTemp);
+				// 대기 
+				//strTemp.Format("!! 권한 없음(Scheduled) - Wait...(%d) !! : %s", i, strPath);
+				//g_pParent->AddLogList(strTemp);
 				Sleep(10); // Wait
 			}
 			else
@@ -1163,8 +1164,8 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 					nResult = pDlg->DoCheckRansomware(itor->strPath); // 랜섬웨어 감염 확인
 					if (nResult == 1) { // 파일 변조됨
 						itemArProcessBehavior = pDlg->m_mapProcessBehavior[itor->pid];
+						itemArProcessBehavior->AddEventWriteFile(itor->strPath, true); // 의심
 						if (itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP) < 10) {
-							itemArProcessBehavior->AddEventWriteFile(itor->strPath, true); // 의심
 							strTemp.Format("PB_COUNT_WRITE_SP: %d", itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
 							pDlg->AddLogList(strTemp);
 						}
@@ -1241,27 +1242,17 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	CString strTemp;
+	ArProcessBehavior* itemArProcessBehavior;
+	DWORD tmpPid;
+
 	ctr_editTargetPid.GetWindowTextA(strTemp);
-	//RecoveryProcessBehavior((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
-	//DoKillRecoveryRansomware((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
-	//DoKillProcessTree((DWORD)atoi((LPSTR)(LPCTSTR)strTemp));
-	DeleteFile("F:\MyTest\\test.txt");
-	/*
-	FILE* fp;
-	float ent;
-
-	fp = fopen("F:\\text.xxx", "rb");
-	if (fp == NULL)
-		return;
-
-	ent = GetFileEntropy(fp, 0);
-
-	strTemp.Format("%02.5f", ent);
-	AddLogList(strTemp);
-
-	fclose(fp);
-	*/
+	tmpPid = (DWORD)atoi((LPSTR)(LPCTSTR)strTemp);
+	if (m_mapProcessBehavior.find(tmpPid) != m_mapProcessBehavior.end()){
+		itemArProcessBehavior = m_mapProcessBehavior[tmpPid];
+		itemArProcessBehavior->RecoveryProcessBehavior(); // 파일 복구
+	}
 }
+
 
 bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 {

@@ -12,8 +12,10 @@ extern CAntiRansomwareUserDlg *g_pParent;
 // Constructor
 ArProcessBehavior::ArProcessBehavior(DWORD pid)
 {
+	CString strTemp;
 	HANDLE handle = NULL;
 	PROCESSENTRY32 pe = { 0 };
+
 	pe.dwSize = sizeof(PROCESSENTRY32);
 	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if (Process32First(handle, &pe))
@@ -34,6 +36,10 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 	m_pid = pid; // pid
 	m_ppid = pe.th32ParentProcessID; // ppid
 	m_strProcName = pe.szExeFile; // process name
+
+	// Process Info
+	strTemp.Format("[%d] %s / ppid: %d", m_pid, m_strProcName, m_ppid);
+	AddLogList(strTemp, true);
 }
 
 
@@ -49,7 +55,6 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 	wchar_t szFilePath[MAX_FILE_PATH] = { 0 };
 	PROCESS_EVENT tmpPE;
 	unsigned int numEvent;
-	//DWORD pid;
 	bool isCheckFileExt;
 	int nPermission = 0;
 
@@ -93,9 +98,9 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 		if (notification->CreateOptions == 1) {
 			if (nPermission > 1)
 				break;
+			AddEventNewFile(notification->isDir, strFilePath); // Add Event
 			strTemp.Format("[신규] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 			AddLogList(strTemp);
-			AddEventNewFile(notification->isDir, strFilePath); // Add Event
 		}
 		else if (notification->CreateOptions == 2) {
 			if (nPermission == 3) {
@@ -153,11 +158,11 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			break;
 		}
 		if (!notification->modeDelete) {
+			AddEventRenameFile((CString)m_pathInfoEx.szLastDriveLetter + (CString)(wchar_t*)notification->OrgFileName, strFilePath); // Add Event
 			strTemp.Format("[이름 변경] 변경 전 - %s: %s%s", (notification->isDir) ? "Dir" : "File", (CString)m_pathInfoEx.szLastDriveLetter, (CString)(wchar_t*)notification->OrgFileName);
 			AddLogList(strTemp);
 			strTemp.Format("[이름 변경] 변경 후 - %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 			AddLogList(strTemp);
-			AddEventRenameFile((CString)m_pathInfoEx.szLastDriveLetter + (CString)(wchar_t*)notification->OrgFileName, strFilePath); // Add Event
 		}
 		break;
 	case fltType_PostSetInformation:
@@ -166,10 +171,9 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			nReturn = 1; // 권한 없음
 			break;
 		}
-
+		AddEventDeleteFile(strFilePath, isCheckFileExt); // Add Event
 		strTemp.Format("[삭제] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 		AddLogList(strTemp);
-		AddEventDeleteFile(strFilePath, isCheckFileExt); // Add Event
 		if (isCheckFileExt) { // 보호 확장자
 			nReturn = 100; // Backup!
 		}
@@ -455,7 +459,7 @@ bool ArProcessBehavior::DoBackupFile(CString strPath, int type)
 
 	nResult = g_pParent->GetPermissionDirectory(strPath);
 	if (nResult > 1) {
-		AddLogList("백업 보류: Safe Directory");
+		//AddLogList("백업 보류: Safe Directory");
 		return false;
 	}
 
@@ -469,9 +473,10 @@ bool ArProcessBehavior::DoBackupFile(CString strPath, int type)
 		nFileSize = GetFileSize(hFile, NULL);
 		CloseHandle(hFile);
 
+		// 10byte 미만 or 20MB 초과 파일 - 백업 안함
 		if (nFileSize < 10 || nFileSize > 20971520) {
-			AddLogList("백업 보류: file size");
-			return false; // 백업 안함 (10byte 미만 or 20MB 초과)
+			//AddLogList("백업 보류: file size");
+			return false;
 		}
 	}
 
