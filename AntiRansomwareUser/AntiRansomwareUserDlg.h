@@ -3,10 +3,10 @@
 //
 
 #pragma once
-#include "AntiRansomwareReportDlg.h"
-#include "AntiRansomwareTable.h"
-#include "scanuser.h"
 #include "afxwin.h"
+#include "AntiRansomwareReportDlg.h"
+#include "AntiRansomwareRecord.h"
+#include "scanuser.h"
 
 const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
 
@@ -32,27 +32,27 @@ public:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
 
 // MyScanner
+private:
+	CWinThread*	pThreadCommunication;
+	list<CString> m_listFileExt; // 파일 확장자
+	CRITICAL_SECTION m_csFileExt;
+
 public:
 	int m_isRunning;
 
-	CWinThread*	pThreadCommunication;
+	HANDLE m_hEventCheckRansomware;
+	CRITICAL_SECTION m_csScanLog;
+	CRITICAL_SECTION m_csFileQueue;
 
 	vector<SCAN_LOG> m_listScanLog; // packet list
+	list<ITEM_CHECK_FILE> m_listCheckFile;
 
-	CRITICAL_SECTION m_csScanLog;
+	map<unsigned int, ArProcessBehavior*> m_mapProcessBehavior;
 
-	map<unsigned int, PROCESS_BEHAVIOR> m_mapProcessBehavior;
-	list<ITEM_NEW_FILE> m_listNewFile;
-	list<ITEM_WRITE_FILE> m_listWriteFile;
-	list<ITEM_RENAME_FILE> m_listRenameFile;
-	list<ITEM_DELETE_FILE> m_listDeleteFile;
-	list<ITEM_BACKUP_FILE> m_listBackupFile;
+	int m_nCountMonitor;
 
-	int m_numNewFile;
-	int m_numWriteFile;
-	int m_numRenameFile;
-	int m_numDeleteFile;
-	int m_numBackupFile;
+	// 백업 중 경로
+	CString m_strBackingUpPath;
 
 // 구현입니다.
 protected:
@@ -72,18 +72,15 @@ public:
 	afx_msg void OnBnClickedButtonRecovery();
 	void AddLogList(CString msg, bool wTime = false);
 	bool InitMyScanner();
+	void SetFileExtList();
+	bool AddCheckFileExtension(CString strExt);
+	bool DoCheckFileExtension(CString strPath);
 	static UINT CommunicationMyScanner(LPVOID lpParam);
 	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
-	bool RecoveryProcessBehavior(DWORD pid);
-	bool AddEventNewFile(DWORD pid, bool isDirectory, CString strPath);
-	bool AddEventRenameFile(DWORD pid, CString strSrc, CString strDst);
-	bool AddEventWriteFile(DWORD pid, CString strPath);
-	bool AddEventDeleteFile(DWORD pid, CString strPath);
-	unsigned int AddEventBackupFile(DWORD pid, CString strPath);
-	bool DoRecoveryFile(unsigned int num_back, CString strPath);
-	bool DoBackupFile(CString strPath);
-	bool DoCheckRansomware(CString strPath);
+	int GetPermissionDirectory(CString strPath, DWORD pid = 0);
+	int DoCheckRansomware(CString strPath);
 	bool DoKillRecoveryRansomware(DWORD pid);
+	bool AddCheckRansomwareFile(DWORD pid, CString strPath);
 	CString GetBackupFilePath(CString strPath);
 	CEdit ctr_editTargetPid;
 };

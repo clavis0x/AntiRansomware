@@ -108,6 +108,7 @@
   <ItemGroup>
     <ClInclude Include="..\inc\scanuk.h" />
     <ClInclude Include="AntiRansomwareReportDlg.h" />
+    <ClInclude Include="AntiRansomwareRecord.h" />
     <ClInclude Include="AntiRansomwareTable.h" />
     <ClInclude Include="AntiRansomwareUser.h" />
     <ClInclude Include="AntiRansomwareUserDlg.h" />
@@ -115,8 +116,10 @@
     <ClInclude Include="scanuser.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="UtilityFilesys.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AntiRansomwareRecord.cpp" />
     <ClCompile Include="AntiRansomwareReportDlg.cpp" />
     <ClCompile Include="AntiRansomwareUser.cpp" />
     <ClCompile Include="AntiRansomwareUserDlg.cpp" />
@@ -124,6 +127,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="UtilityFilesys.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AntiRansomwareUser.rc" />

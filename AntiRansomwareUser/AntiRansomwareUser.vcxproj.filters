@@ -42,7 +42,13 @@
     <ClInclude Include="..\inc\scanuk.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="AntiRansomwareRecord.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="AntiRansomwareTable.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="UtilityFilesys.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
@@ -57,6 +63,12 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="AntiRansomwareReportDlg.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="AntiRansomwareRecord.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="UtilityFilesys.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

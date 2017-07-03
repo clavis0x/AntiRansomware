@@ -814,6 +814,7 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 	NTSTATUS status;
 	wchar_t * pMytestPath = NULL;
 	wchar_t * pMytestPath2 = NULL;
+	BOOLEAN isCreate = FALSE;
 	BOOLEAN isDelete = FALSE;
 	BOOLEAN isDirectory;
 
@@ -824,15 +825,15 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 	} setInfo;
 
 	if (g_userPID == PsGetProcessId(IoThreadToProcess(Data->Thread)))
-		return;
+		return 0;
 
 	if (FlagOn(Data->Iopb->IrpFlags, IRP_CREATE_OPERATION)) {
 		if (Data->IoStatus.Information == FILE_CREATED) {
-			isDelete = TRUE;
+			isCreate = TRUE;
 		}
 	}
 
-	if (!isDelete) {
+	if (!isCreate) {
 		//Write로 접근하는 정보만 출력.. 
 		if (FltObjects->FileObject->WriteAccess != 1) {
 
@@ -843,20 +844,38 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 				//내부적으로 MoveFile 을 해주는 듯함.. 새로운 파일 생성하고, 기존 파일 지우는 방식으로.. 
 				// FltObjects가 같을 경우에는 rename이므로 비교가 필요(동일한 패스의 파일이 동일한 FltObject인지)
 				if (FltObjects->FileObject->DeleteAccess != 1 || FltObjects->FileObject->SharedDelete != 1)
-					return;
+					return 0;
+			}
+			else if (nFltType == fltType_PreCreate) {
+				BOOLEAN isOverwriteFile;
+				unsigned int createDisposition;
+				// Get create disposition
+				createDisposition = (Data->Iopb->Parameters.Create.Options >> 24) & 0x000000FF;
+
+				isOverwriteFile = ((FILE_SUPERSEDE == createDisposition)
+					|| (FILE_OVERWRITE == createDisposition)
+					|| (FILE_OVERWRITE_IF == createDisposition));
+
+				if (!isOverwriteFile) {
+					return 0;
+				}
+			}
+			else if (nFltType == fltType_PostCreate) {
+				if (FltObjects->FileObject->DeleteAccess != 1)
+					return 0;
+					
 			}
 			else {
-				return;
+				return 0;
 			}
 		}
 	}
-
 	/*
 	//확장자부터 확인하자.. 로그가 너무 많이 나옴.. 
 	FltIsDirectory(Data->Iopb->TargetFileObject, FltObjects->Instance, &isDirectory);
 	if (!isDirectory){
 		if (MyCheckFileExt(Data) == FALSE)
-			return;
+			return 0;
 	}
 	*/
 
@@ -868,12 +887,12 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			&nameInfo);
 
 		if (NT_SUCCESS(status) == FALSE) {
-			return;
+			return 0;
 		}
 	}
 	else {
 		if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass != FileRenameInformation)
-			return;
+			return 0;
 
 		// 파일명 변경 - 원본 파일명과 변경된 파일명 구하기
 		renameInfo = (PFILE_RENAME_INFORMATION)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
@@ -889,13 +908,12 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			FLT_FILE_NAME_REQUEST_FROM_CURRENT_PROVIDER | FLT_FILE_NAME_OPENED | FLT_FILE_NAME_QUERY_DEFAULT,
 			&nameInfo);
 		if (!NT_SUCCESS(status))
-			return;
+			return 0;
 
 		status = FltParseFileNameInformation(nameInfo);
 		if (!NT_SUCCESS(status))
-			return;
+			return 0;
 	}
-
 	/*
 	//감시경로지정.. 
 	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
@@ -904,23 +922,40 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			pMytestPath2 = wcsstr(FltObjects->FileObject->FileName.Buffer, L"MyTest");
 		if (pMytestPath == NULL && pMytestPath2 == NULL) {
 			FltReleaseFileNameInformation(nameInfo);
-			return;
+			return 0;
 		}
 	}
 	*/
 
+	if (nFltType == fltType_PostCreate) {
+		if (FltObjects->FileObject->DeleteAccess == 1 || FltObjects->FileObject->SharedDelete == 1) {
+			//확장자부터 확인하자.. 로그가 너무 많이 나옴.. 
+			FltIsDirectory(Data->Iopb->TargetFileObject, FltObjects->Instance, &isDirectory);
+			if (!isDirectory) {
+				if (MyCheckFileExt(Data) == FALSE) {
+					FltReleaseFileNameInformation(nameInfo);
+					return 0;
+				}
+			}
+			else {
+				FltReleaseFileNameInformation(nameInfo);
+				return 0;
+			}
+		}
+	}
 
 	// User Process에게 통보
 	switch (nFltType)
 	{
 		case fltType_PreCreate:
 			DbgPrint("[Anti-Rs] ScannerPreCreate\n");
+			nResult = RFNotifyUserProcess(fltType_PreCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostCreate:
 			DbgPrint("[Anti-Rs] ScannerPostCreate\n");
-			//DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
-			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
-			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			DbgPrint("[Anti-Rs]  ㄴ Name: %S", nameInfo->Name.Buffer);
+			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
+			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
 			nResult = RFNotifyUserProcess(fltType_PostCreate, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PreClose:
@@ -947,10 +982,10 @@ ULONG DbgPrintInformation(MY_IRP_FILTER_TYPE nFltType, PFLT_CALLBACK_DATA Data, 
 			break;
 		case fltType_PreSetInformation:
 			DbgPrint("[Anti-Rs] ScannerPreSetInformation\n");
-			//DbgPrint("[Anti-Rs]  ㄴ src: %S\n", FltObjects->FileObject->FileName.Buffer);
-			//DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
-			//DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
-			//DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
+			DbgPrint("[Anti-Rs]  ㄴ src: %S\n", FltObjects->FileObject->FileName.Buffer);
+			DbgPrint("[Anti-Rs]  ㄴ dst: %S\n", nameInfo->Name.Buffer);
+			DbgPrint("[Anti-Rs]  ㄴ R: %d, W: %d, D: %d", FltObjects->FileObject->ReadAccess, FltObjects->FileObject->WriteAccess, FltObjects->FileObject->DeleteAccess);
+			DbgPrint("[Anti-Rs]  ㄴ SR: %d, SW: %d, SD: %d", FltObjects->FileObject->SharedRead, FltObjects->FileObject->SharedWrite, FltObjects->FileObject->SharedDelete);
 			nResult = RFNotifyUserProcess(fltType_PreSetInformation, nameInfo->Name.Length, nameInfo->Name.Buffer, FltObjects, nameInfo, Data);
 			break;
 		case fltType_PostSetInformation:
@@ -1032,12 +1067,17 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 
 	// Delete mode
 	notification->modeDelete = 0;
-	if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass == FileDispositionInformation)
-	{
-		PFILE_DISPOSITION_INFORMATION info = (PFILE_DISPOSITION_INFORMATION)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
-		if (info != NULL && info->DeleteFile)
-		{
+	if (fltType == fltType_PostCreate) {
+		if (FltObjects->FileObject->DeleteAccess == 1) {
+			DbgPrint("[Anti-Rs] ★ PostCreate: Delete ★\n");
 			notification->modeDelete = 1;
+		}
+	}else{
+		if (Data->Iopb->Parameters.SetFileInformation.FileInformationClass == FileDispositionInformation) {
+			PFILE_DISPOSITION_INFORMATION info = (PFILE_DISPOSITION_INFORMATION)Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
+			if (info != NULL && info->DeleteFile) {
+				notification->modeDelete = 1;
+			}
 		}
 	}
 
@@ -1062,7 +1102,20 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 			DbgPrint("[Anti-Rs] D E N Y !\n");
 		}
 		else if (((PSCANNER_REPLY)notification)->cmdType == 100) {
-			CHAR szPath[1024] = { 0 };
+			ANSI_STRING ansiStr;
+			UNICODE_STRING backupFilePath;
+			unsigned int pathLen;
+			nResult = 100;
+			DbgPrint("[Anti-Rs] B A C K U P !\n");
+
+			RtlInitAnsiString(&ansiStr, ((PSCANNER_REPLY)notification)->Contents);
+			RtlAnsiStringToUnicodeString(&backupFilePath, &ansiStr, TRUE);
+			if (!isDirectory) {
+				DbgPrint("[Anti-Rs] Path: %wZ", &backupFilePath);
+				CopyFile(Data, FltObjects, &backupFilePath);
+			}
+			RtlFreeUnicodeString(&backupFilePath);
+			/*
 			ANSI_STRING ansiStr;
 			UNICODE_STRING backupFilePath;
 			unsigned int pathLen;
@@ -1085,6 +1138,9 @@ ULONG RFNotifyUserProcess(int fltType, int pathLength, wchar_t * pPath, PCFLT_RE
 
 			if (backupFilePath.Buffer != NULL)
 				ExFreePoolWithTag(backupFilePath.Buffer, FILE_POOL_TAG);
+			if (ansiStr.Buffer != NULL)
+				ExFreePoolWithTag(ansiStr.Buffer, FILE_POOL_TAG);
+			*/
 		}
 	}
 
@@ -1137,13 +1193,63 @@ FLT_PREOP_SUCCESS_NO_CALLBACK - All other threads.
 	NTSTATUS status;
 	PFLT_FILE_NAME_INFORMATION nameInfo;
 	wchar_t * pMytestPath = NULL;
+	ULONG nResult;
 
 	UNREFERENCED_PARAMETER(FltObjects);
 	UNREFERENCED_PARAMETER(CompletionContext);
 
 	PAGED_CODE();
+	/*
+	status = FltGetFileNameInformation(Data,
+		FLT_FILE_NAME_NORMALIZED |
+		FLT_FILE_NAME_QUERY_DEFAULT,
+		&nameInfo);
 
-	DbgPrintInformation(fltType_PreCreate, Data, FltObjects);
+	if (!NT_SUCCESS(status)) {
+
+		return FLT_POSTOP_FINISHED_PROCESSING;
+	}
+
+	FltParseFileNameInformation(nameInfo);
+	*/
+
+	nResult = DbgPrintInformation(fltType_PreCreate, Data, FltObjects);
+	if (nResult == 1) {
+		DbgPrint("[Anti-Rs] ★ D E N Y ★\n");
+		FltCancelFileOpen(FltObjects->Instance, FltObjects->FileObject);
+		Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+		Data->IoStatus.Information = 0;
+		return FLT_PREOP_COMPLETE;
+	}
+	/*
+	pMytestPath = wcsstr(nameInfo->Name.Buffer, L"MyTest");
+	if (pMytestPath != NULL) {
+		if (Data
+			&& Data->Iopb
+			&& (Data->Iopb->MajorFunction == IRP_MJ_CREATE))
+		{
+			BOOLEAN isOverwriteFile;
+			unsigned int createDisposition;
+			// Get create disposition
+			createDisposition = (Data->Iopb->Parameters.Create.Options >> 24) & 0x000000FF;
+
+			isOverwriteFile = ((FILE_SUPERSEDE == createDisposition)
+				|| (FILE_OVERWRITE == createDisposition)
+				|| (FILE_OVERWRITE_IF == createDisposition));
+
+			if (isOverwriteFile) {
+				DbgPrint("[Anti-Rs] ★ PreCreate: MyTest ★\n");
+				DbgPrint("[Anti-Rs] ★ D E N Y ★\n");
+				FltCancelFileOpen(FltObjects->Instance, FltObjects->FileObject);
+				Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+				Data->IoStatus.Information = 0;
+				return FLT_PREOP_COMPLETE;
+			}
+		}
+	*/
+	
+
+	//FltReleaseFileNameInformation(nameInfo);
 
 	// Sample
 	/*
@@ -1203,6 +1309,7 @@ access to this file, hence undo the open
 	PFLT_FILE_NAME_INFORMATION nameInfo;
 	NTSTATUS status;
 	BOOLEAN safeToOpen, scanFile;
+	ULONG nResult;
 
 	UNREFERENCED_PARAMETER(CompletionContext);
 	UNREFERENCED_PARAMETER(Flags);
@@ -1217,7 +1324,13 @@ access to this file, hence undo the open
 		return FLT_POSTOP_FINISHED_PROCESSING;
 	}
 
-	DbgPrintInformation(fltType_PostCreate, Data, FltObjects);
+	nResult = DbgPrintInformation(fltType_PostCreate, Data, FltObjects);
+	if (nResult == 1) {
+		FltCancelFileOpen(FltObjects->Instance, FltObjects->FileObject);
+		Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+		Data->IoStatus.Information = 0;
+		return FLT_POSTOP_FINISHED_PROCESSING;
+	}
 
 	
 	// Sample: 파일 정보 구하기?
@@ -1792,6 +1905,7 @@ The return value is the status of the operation.
 	//PFILE_RENAME_INFORMATION newRenameInfo = NULL;
 	PFLT_FILE_NAME_INFORMATION nameInfo = NULL;
 	UNICODE_STRING newFileName;
+	ULONG nResult;
 
 	struct {
 		HANDLE RootDirectory;
@@ -1829,7 +1943,17 @@ The return value is the status of the operation.
 		}
 	}
 
-	DbgPrintInformation(fltType_PreSetInformation, Data, FltObjects);
+	nResult = DbgPrintInformation(fltType_PreSetInformation, Data, FltObjects);
+	if (nResult == 1) {
+		if (nameInfo)
+		{
+			FltReleaseFileNameInformation(nameInfo);
+		}
+		DbgPrint("[Anti-Rs] ScannerPreSetInformation: ★ D E N Y ★\n");
+		Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+		Data->IoStatus.Information = 0;
+		return FLT_PREOP_COMPLETE;
+	}
 
 	// Sample
 	/*
@@ -1996,8 +2120,11 @@ ScannerPostSetInformation(
 	nResult = DbgPrintInformation(fltType_PostSetInformation, Data, FltObjects);
 	if(nResult == 1){
 		// 권한 없음
-		//Data->IoStatus.Status = STATUS_ACCESS_DENIED;
-		//Data->IoStatus.Information = 0;
+		/*
+		Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+		Data->IoStatus.Information = 0;
+		return FLT_PREOP_COMPLETE;
+		*/
 	}
 
 	// Sample
