@@ -257,6 +257,7 @@ bool CAntiRansomwareUserDlg::DoCheckFileExtension(CString strPath)
 	itor = m_listFileExt.begin();
 	while (itor != m_listFileExt.end()) {
 		if (strExt.Compare(*itor) == 0) {
+			LeaveCriticalSection(&m_csFileExt);
 			return true;
 		}
 		itor++;
