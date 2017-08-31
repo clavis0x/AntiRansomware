@@ -75,6 +75,11 @@ BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
 	ON_WM_LBUTTONDOWN()
 	ON_BN_CLICKED(IDC_BUTTON_TOGGLE1, &CAntiRansomwareUserDlg::OnBnClickedButtonToggle1)
 	ON_BN_CLICKED(IDC_BUTTON_TOGGLE2, &CAntiRansomwareUserDlg::OnBnClickedButtonToggle2)
+	ON_BN_CLICKED(IDC_BUTTON_MENU2, &CAntiRansomwareUserDlg::OnBnClickedButtonMenu2)
+	ON_BN_CLICKED(IDC_BUTTON_MENU3, &CAntiRansomwareUserDlg::OnBnClickedButtonMenu3)
+	ON_BN_CLICKED(IDC_BUTTON_MENU4, &CAntiRansomwareUserDlg::OnBnClickedButtonMenu4)
+	ON_BN_CLICKED(IDC_BUTTON_MENU5, &CAntiRansomwareUserDlg::OnBnClickedButtonMenu5)
+	ON_BN_CLICKED(IDC_BUTTON_MINIMUM, &CAntiRansomwareUserDlg::OnBnClickedButtonMinimum)
 END_MESSAGE_MAP()
 
 
@@ -148,8 +153,6 @@ bool CAntiRansomwareUserDlg::InitDialogUI()
 	HBITMAP h_old_bitmap = ctr_picMenu1.SetBitmap(lamp_image);
 	if (h_old_bitmap != NULL) ::DeleteObject(h_old_bitmap);
 	lamp_image.Detach();
-
-	//SetDetectionEngine();
 
 	m_gbtnMenu2.LoadStdImage(IDB_PNG_MENU2_NORMAL, _T("PNG"));
 	m_gbtnMenu2.LoadSthImage(IDB_PNG_MENU2_ACTIVE, _T("PNG"));
@@ -1486,6 +1489,14 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonClose()
 	PostQuitMessage(WM_QUIT);
 }
 
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonMinimum()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	g_pParent->DoPopupInfoWindow(0); // 팝업창
+}
+
+
 void CAntiRansomwareUserDlg::OnBnClickedButtonToggle1()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
@@ -1533,4 +1544,32 @@ bool CAntiRansomwareUserDlg::SetDetectionEngine()
 	m_gbtnToggle2.SetBkGnd();
 	
 	return true;
+}
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonMenu2()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
+
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonMenu3()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
+
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonMenu4()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+}
+
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonMenu5()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	if (m_pAntiRansomwareSettingsDlg.GetSafeHwnd() == NULL) {
+		m_pAntiRansomwareSettingsDlg.Create(IDD_ANTIRANSOMWARESETTINGSDLG);
+		m_pAntiRansomwareSettingsDlg.CenterWindow(CWnd::FromHandle(this->m_hWnd));
+	}
+	m_pAntiRansomwareSettingsDlg.ShowWindow(SW_SHOW);
 }

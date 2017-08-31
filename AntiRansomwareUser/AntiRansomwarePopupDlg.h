@@ -21,6 +21,7 @@ protected:
 
 	int m_typePopup;
 	CBitmap m_background;
+	CFont m_font;
 
 // Anti-Ransomware Popup
 public:
@@ -31,4 +32,7 @@ public:
 	void InitPopupWindow(int type);
 
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnClose();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg void OnDestroy();
 };

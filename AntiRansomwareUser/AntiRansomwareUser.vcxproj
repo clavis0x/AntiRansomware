@@ -111,6 +111,7 @@
     <ClInclude Include="AntiRansomwarePopupDlg.h" />
     <ClInclude Include="AntiRansomwareReportDlg.h" />
     <ClInclude Include="AntiRansomwareRecord.h" />
+    <ClInclude Include="AntiRansomwareSettingsDlg.h" />
     <ClInclude Include="AntiRansomwareTable.h" />
     <ClInclude Include="AntiRansomwareUser.h" />
     <ClInclude Include="AntiRansomwareUserDlg.h" />
@@ -128,6 +129,7 @@
     <ClCompile Include="AntiRansomwarePopupDlg.cpp" />
     <ClCompile Include="AntiRansomwareRecord.cpp" />
     <ClCompile Include="AntiRansomwareReportDlg.cpp" />
+    <ClCompile Include="AntiRansomwareSettingsDlg.cpp" />
     <ClCompile Include="AntiRansomwareUser.cpp" />
     <ClCompile Include="AntiRansomwareUserDlg.cpp" />
     <ClCompile Include="GdipButton.cpp" />

@@ -6,6 +6,7 @@
 #include "afxwin.h"
 #include "AntiRansomwarePopupDlg.h"
 #include "AntiRansomwareReportDlg.h"
+#include "AntiRansomwareSettingsDlg.h"
 #include "AntiRansomwareRecord.h"
 #include "scanuser.h"
 
@@ -83,6 +84,7 @@ protected:
 public:
 	CAntiRansomwarePopupDlg m_pAntiRansomwarePopupDlg;
 	CAntiRansomwareReportDlg m_pAntiRansomwareReportDlg;
+	CAntiRansomwareSettingsDlg m_pAntiRansomwareSettingsDlg;
 	LRESULT OnInitializationCompleted(WPARAM wParam, LPARAM lParam);
 	LRESULT OnPopupInfoWindow(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnMoving(UINT fwSide, LPRECT pRect);
@@ -111,4 +113,9 @@ public:
 	bool SetDetectionEngine();
 	afx_msg void OnBnClickedButtonToggle1();
 	afx_msg void OnBnClickedButtonToggle2();
+	afx_msg void OnBnClickedButtonMenu2();
+	afx_msg void OnBnClickedButtonMenu3();
+	afx_msg void OnBnClickedButtonMenu4();
+	afx_msg void OnBnClickedButtonMenu5();
+	afx_msg void OnBnClickedButtonMinimum();
 };
