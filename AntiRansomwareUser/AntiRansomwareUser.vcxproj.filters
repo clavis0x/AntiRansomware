@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="리소스 파일\images">
+      <UniqueIdentifier>{983a93c2-d713-4ae9-8906-aefd90f8382f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -51,6 +54,15 @@
     <ClInclude Include="UtilityFilesys.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="CGdiPlusBitmap.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="GdipButton.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="MemDC.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AntiRansomwareUser.cpp">
@@ -71,6 +83,9 @@
     <ClCompile Include="UtilityFilesys.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="GdipButton.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="AntiRansomwareUser.rc">
@@ -85,6 +100,75 @@
   <ItemGroup>
     <Image Include="res\AntiRansomwareUser.ico">
       <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="images\close_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\close_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_danger.bmp">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_danger.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_safety.bmp">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_safety.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_warning.bmp">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu1_warning.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu2_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu2_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu3_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu3_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu4_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu4_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu5_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\menu5_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\minimum_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\minimum_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\toggle_off_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\toggle_off_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\toggle_on_active.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\toggle_on_normal.png">
+      <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\AntiRansomware_650x475.bmp">
+      <Filter>리소스 파일\images</Filter>
     </Image>
   </ItemGroup>
 </Project>

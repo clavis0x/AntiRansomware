@@ -70,6 +70,9 @@ BOOL CAntiRansomwareUserApp::InitInstance()
 	// 적절한 내용으로 수정해야 합니다.
 	SetRegistryKey(_T("로컬 응용 프로그램 마법사에서 생성된 응용 프로그램"));
 
+	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+	Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
+
 	CAntiRansomwareUserDlg dlg;
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
@@ -100,3 +103,12 @@ BOOL CAntiRansomwareUserApp::InitInstance()
 	return FALSE;
 }
 
+
+
+int CAntiRansomwareUserApp::ExitInstance()
+{
+	// TODO: 여기에 특수화된 코드를 추가 및/또는 기본 클래스를 호출합니다.
+	Gdiplus::GdiplusShutdown(m_gdiplusToken);
+
+	return CWinApp::ExitInstance();
+}

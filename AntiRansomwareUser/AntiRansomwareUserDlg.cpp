@@ -7,6 +7,8 @@
 #include "AntiRansomwareUserDlg.h"
 #include "afxdialogex.h"
 
+#include "MemDC.h"
+
 
 const char* g_szBackupPath = "\\_SafeBackup"; // 백업 폴더
 const char* g_szBackupExt = "txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar"; // 보호 파일 확장자
@@ -39,6 +41,15 @@ void CAntiRansomwareUserDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_EDIT_TARGET_PID, ctr_editTargetPid);
+	DDX_Control(pDX, IDC_BUTTON_CLOSE, m_gbtnClose);
+	DDX_Control(pDX, IDC_BUTTON_MINIMUM, m_gbtnMinimum);
+	DDX_Control(pDX, IDC_PICTURE_MENU1, ctr_picMenu1);
+	DDX_Control(pDX, IDC_BUTTON_MENU2, m_gbtnMenu2);
+	DDX_Control(pDX, IDC_BUTTON_MENU3, m_gbtnMenu3);
+	DDX_Control(pDX, IDC_BUTTON_MENU4, m_gbtnMenu4);
+	DDX_Control(pDX, IDC_BUTTON_MENU5, m_gbtnMenu5);
+	DDX_Control(pDX, IDC_BUTTON_TOGGLE1, m_gbtnToggle1);
+	DDX_Control(pDX, IDC_BUTTON_TOGGLE2, m_gbtnToggle2);
 }
 
 BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
@@ -49,6 +60,11 @@ BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_ViewReport, &CAntiRansomwareUserDlg::OnBnClickedButtonViewreport)
 	ON_WM_MOVING()
 	ON_BN_CLICKED(IDC_BUTTON_RECOVERY, &CAntiRansomwareUserDlg::OnBnClickedButtonRecovery)
+	ON_WM_ERASEBKGND()
+	ON_BN_CLICKED(IDC_BUTTON_CLOSE, &CAntiRansomwareUserDlg::OnBnClickedButtonClose)
+	ON_WM_LBUTTONDOWN()
+	ON_BN_CLICKED(IDC_BUTTON_TOGGLE1, &CAntiRansomwareUserDlg::OnBnClickedButtonToggle1)
+	ON_BN_CLICKED(IDC_BUTTON_TOGGLE2, &CAntiRansomwareUserDlg::OnBnClickedButtonToggle2)
 END_MESSAGE_MAP()
 
 
@@ -67,6 +83,9 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 	hWnd = AfxGetMainWnd()->m_hWnd; // GET MAIN HANDLE
 	g_pParent = this; // 부모 개체 정의
 
+	// Init UI
+	InitDialogUI();
+
 	m_listScanLog.clear();
 
 	// CRITICAL SECTION - Initial
@@ -83,6 +102,53 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 	PostMessageA(WM_INITIALIZATION_COMPLETED, NULL, NULL); // WM_INITIALIZATION_COMPLETED
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
+}
+
+bool CAntiRansomwareUserDlg::InitDialogUI()
+{
+	this->SetWindowTextA("Anti-Ransomware");
+
+	m_background.LoadBitmapA(IDB_BITMAP_MAIN);
+
+	m_gbtnClose.LoadStdImage(IDB_PNG_CLOSE_NORMAL, _T("PNG"));
+	m_gbtnClose.LoadSthImage(IDB_PNG_CLOSE_ACTIVE, _T("PNG"));
+	m_gbtnMinimum.LoadStdImage(IDB_PNG_MINIMUM_NORMAL, _T("PNG"));
+	m_gbtnMinimum.LoadSthImage(IDB_PNG_MINIMUM_ACTIVE, _T("PNG"));
+
+	// MENU1
+	lamp_image.LoadBitmap(IDB_BITMAP_MENU1_SAFETY);
+	HBITMAP h_old_bitmap = ctr_picMenu1.SetBitmap(lamp_image);
+	if (h_old_bitmap != NULL) ::DeleteObject(h_old_bitmap);
+	lamp_image.Detach();
+
+	//SetDetectionEngine();
+
+	m_gbtnMenu2.LoadStdImage(IDB_PNG_MENU2_NORMAL, _T("PNG"));
+	m_gbtnMenu2.LoadSthImage(IDB_PNG_MENU2_ACTIVE, _T("PNG"));
+	m_gbtnMenu3.LoadStdImage(IDB_PNG_MENU3_NORMAL, _T("PNG"));
+	m_gbtnMenu3.LoadSthImage(IDB_PNG_MENU3_ACTIVE, _T("PNG"));
+	m_gbtnMenu4.LoadStdImage(IDB_PNG_MENU4_NORMAL, _T("PNG"));
+	m_gbtnMenu4.LoadSthImage(IDB_PNG_MENU4_ACTIVE, _T("PNG"));
+	m_gbtnMenu5.LoadStdImage(IDB_PNG_MENU5_NORMAL, _T("PNG"));
+	m_gbtnMenu5.LoadSthImage(IDB_PNG_MENU5_ACTIVE, _T("PNG"));
+
+	m_gbtnToggle1.LoadStdImage(IDB_PNG_TOGGLE_OFF_NORMAL, _T("PNG"));
+	m_gbtnToggle1.LoadSthImage(IDB_PNG_TOGGLE_OFF_ACTIVE, _T("PNG"));
+	m_gbtnToggle1.LoadAltImage(IDB_PNG_TOGGLE_ON_NORMAL, _T("PNG"));
+	m_gbtnToggle1.LoadAlhImage(IDB_PNG_TOGGLE_ON_ACTIVE, _T("PNG"));
+	m_gbtnToggle1.EnableToggle(TRUE);
+	m_gbtnToggle1.SetToggle(TRUE);
+
+	m_gbtnToggle2.LoadStdImage(IDB_PNG_TOGGLE_OFF_NORMAL, _T("PNG"));
+	m_gbtnToggle2.LoadSthImage(IDB_PNG_TOGGLE_OFF_ACTIVE, _T("PNG"));
+	m_gbtnToggle2.LoadAltImage(IDB_PNG_TOGGLE_ON_NORMAL, _T("PNG"));
+	m_gbtnToggle2.LoadAlhImage(IDB_PNG_TOGGLE_ON_ACTIVE, _T("PNG"));
+	m_gbtnToggle2.EnableToggle(TRUE);
+	m_gbtnToggle2.SetToggle(TRUE);
+
+	
+
+	return true;
 }
 
 
@@ -121,11 +187,47 @@ void CAntiRansomwareUserDlg::OnPaint()
 	}
 }
 
+
+BOOL CAntiRansomwareUserDlg::OnEraseBkgnd(CDC* pDC)
+{
+	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+	if (!m_background.m_hObject)
+		return true;
+
+	CRect rect;
+	GetClientRect(&rect);
+
+	CDC dc;
+	dc.CreateCompatibleDC(pDC);
+	CBitmap* pOldBitmap = dc.SelectObject(&m_background);
+
+	BITMAP bmap;
+	m_background.GetBitmap(&bmap);
+	//pDC->StretchBlt(0, 0, rect.Width(), rect.Height(), &dc, 0, 0, bmap.bmWidth, bmap.bmHeight, SRCCOPY);
+	pDC->BitBlt(0, 0, rect.Width(), rect.Height(), &dc, 0, 0, SRCCOPY);
+
+	dc.SelectObject(pOldBitmap);
+
+	return true;
+	//return CDialogEx::OnEraseBkgnd(pDC);
+}
+
 // 사용자가 최소화된 창을 끄는 동안에 커서가 표시되도록 시스템에서
 //  이 함수를 호출합니다.
 HCURSOR CAntiRansomwareUserDlg::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
+}
+
+
+void CAntiRansomwareUserDlg::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
+	// 제목표시줄 클릭 시 창 이동
+	if(point.y < 37)
+		SendMessage(WM_NCLBUTTONDOWN, HTCAPTION, 0);
+
+	CDialogEx::OnLButtonDown(nFlags, point);
 }
 
 
@@ -1103,16 +1205,33 @@ int CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 		if (entropy_target > 7.9)
 			isChangeEntropy = true;
 	}
-	strTemp.Format("엔트로피 차: %02.5f, %s (%02.5f -> %02.5f)",
-		abs(entropy_target - entropy_backup), (isChangeEntropy) ? "변화됨" : "변화 없음", entropy_backup, entropy_target);
-	AddLogList(strTemp);
 	
 	if(isChangeEntropy){
+		strTemp.Format("Warning: 엔트로피 변화 (%02.5f -> %02.5f, %02.5f)", entropy_backup, entropy_target, abs(entropy_target - entropy_backup));
+		AddLogList(strTemp);
 		return 1;
 	}
 
-	// STEP3: ssdeep? (binary)
+	// STEP3: [ssdeep] Fuzzy Hash 비교(binary)
+	int nFuzzy;
+	char * resultFuzzy, *resultFuzzy2;
+	resultFuzzy = (char *)malloc(FUZZY_MAX_RESULT);
+	resultFuzzy2 = (char *)malloc(FUZZY_MAX_RESULT);
+	nResult = fuzzy_hash_filename((LPSTR)(LPCTSTR)strPath, resultFuzzy);
+	nResult = fuzzy_hash_filename((LPSTR)(LPCTSTR)strBackupPath, resultFuzzy2);
 
+	nFuzzy = fuzzy_compare(resultFuzzy, resultFuzzy2);
+	if (nFuzzy >= 0) {
+		strTemp.Format("Fuzzy Hash : score = %d\n", nFuzzy);
+		AddLogList(strTemp);
+		if (nFuzzy <= 20) {
+			AddLogList("Warning: Fuzzy Hash 불일치");
+			return 1;
+		}
+	}
+
+	free(resultFuzzy);
+	free(resultFuzzy2);
 
 	fclose(fpTarget);
 	fclose(fpBackup);
@@ -1282,5 +1401,60 @@ bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 	strTemp.Format("검사 항목 추가: %s", strPath);
 	AddLogList(strTemp);
 
+	return true;
+}
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonClose()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	PostQuitMessage(WM_QUIT);
+}
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonToggle1()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	SetDetectionEngine();
+}
+
+
+void CAntiRansomwareUserDlg::OnBnClickedButtonToggle2()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	SetDetectionEngine();
+}
+
+
+bool CAntiRansomwareUserDlg::SetDetectionEngine()
+{
+	int nEngines = 0;
+	if (m_gbtnToggle1.IsToggled() == TRUE) {
+		nEngines += 1;
+	}
+	if (m_gbtnToggle2.IsToggled() == TRUE) {
+		nEngines += 1;
+	}
+
+	switch (nEngines)
+	{
+		case 0:
+			lamp_image.LoadBitmap(IDB_BITMAP_MENU1_DANGER);
+			break;
+		case 1:
+			lamp_image.LoadBitmap(IDB_BITMAP_MENU1_WARNING);
+			break;
+		case 2:
+			lamp_image.LoadBitmap(IDB_BITMAP_MENU1_SAFETY);
+			break;
+	}
+
+	HBITMAP h_old_bitmap = ctr_picMenu1.SetBitmap(lamp_image);
+	if (h_old_bitmap != NULL) ::DeleteObject(h_old_bitmap);
+	lamp_image.Detach();
+	
+	m_gbtnToggle1.Invalidate(TRUE);
+	m_gbtnToggle1.SetBkGnd();
+	m_gbtnToggle2.Invalidate(TRUE);
+	m_gbtnToggle2.SetBkGnd();
+	
 	return true;
 }

@@ -19,6 +19,7 @@ class CAntiRansomwareUserApp : public CWinApp
 {
 public:
 	CAntiRansomwareUserApp();
+	ULONG_PTR m_gdiplusToken;
 
 // 재정의입니다.
 public:
@@ -27,6 +28,7 @@ public:
 // 구현입니다.
 
 	DECLARE_MESSAGE_MAP()
+	virtual int ExitInstance();
 };
 
 extern CAntiRansomwareUserApp theApp;

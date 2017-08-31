@@ -35,6 +35,10 @@
 
 
 //***** MyScanner *****//
+#include <gdiplus.h>
+#pragma comment(lib, "gdiplus.lib")
+using namespace Gdiplus;
+
 #include <scanuk.h>
 #include <fltuser.h>
 #include <strsafe.h>
@@ -55,6 +59,7 @@ using std::queue;
 using std::stack;
 using std::map;
 
+#include "lib/ssdeep/fuzzy.h"
 
 
 

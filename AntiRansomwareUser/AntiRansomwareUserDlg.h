@@ -8,6 +8,8 @@
 #include "AntiRansomwareRecord.h"
 #include "scanuser.h"
 
+#include "GdipButton.h"
+
 const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
 
 typedef struct sScanLog {
@@ -57,6 +59,18 @@ public:
 // 구현입니다.
 protected:
 	HICON m_hIcon;
+	CBitmap m_background;
+
+	CGdipButton	m_gbtnClose;
+	CGdipButton	m_gbtnMinimum;
+	CGdipButton	m_gbtnMenu2;
+	CGdipButton	m_gbtnMenu3;
+	CGdipButton	m_gbtnMenu4;
+	CGdipButton	m_gbtnMenu5;
+	CGdipButton	m_gbtnToggle1; // 행위기반
+	CGdipButton	m_gbtnToggle2; // 시그니처
+
+	CBitmap lamp_image;
 
 	// 생성된 메시지 맵 함수
 	virtual BOOL OnInitDialog();
@@ -71,6 +85,7 @@ public:
 	afx_msg void OnBnClickedButtonViewreport();
 	afx_msg void OnBnClickedButtonRecovery();
 	void AddLogList(CString msg, bool wTime = false);
+	bool InitDialogUI();
 	bool InitMyScanner();
 	void SetFileExtList();
 	bool AddCheckFileExtension(CString strExt);
@@ -83,4 +98,11 @@ public:
 	bool AddCheckRansomwareFile(DWORD pid, CString strPath);
 	CString GetBackupFilePath(CString strPath);
 	CEdit ctr_editTargetPid;
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	afx_msg void OnBnClickedButtonClose();
+	CStatic ctr_picMenu1;
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	bool SetDetectionEngine();
+	afx_msg void OnBnClickedButtonToggle1();
+	afx_msg void OnBnClickedButtonToggle2();
 };
