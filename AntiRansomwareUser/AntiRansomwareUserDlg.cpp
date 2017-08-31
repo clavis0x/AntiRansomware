@@ -25,7 +25,14 @@ CAntiRansomwareUserDlg *g_pParent;
 CWinThread*	pThreadCheckRansomware = NULL;
 static UINT CheckRansomwareWorker(LPVOID lpParam); // 파일 암호화 감시 스레드
 
+//타이머 핸들러 선언
+MMRESULT g_idMNTimer1;
+void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWORD dw2);
+
 UCHAR FoulString[] = "foul";
+
+DWORD FindRansomwareParantPID(DWORD pid);
+BOOL DoKillProcessTree(DWORD pid);
 
 // CAntiRansomwareUserDlg 대화 상자
 
@@ -50,6 +57,8 @@ void CAntiRansomwareUserDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_BUTTON_MENU5, m_gbtnMenu5);
 	DDX_Control(pDX, IDC_BUTTON_TOGGLE1, m_gbtnToggle1);
 	DDX_Control(pDX, IDC_BUTTON_TOGGLE2, m_gbtnToggle2);
+	DDX_Control(pDX, IDC_BUTTON_ViewReport, m_gbtnMenuB1);
+	
 }
 
 BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
@@ -57,6 +66,7 @@ BEGIN_MESSAGE_MAP(CAntiRansomwareUserDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_WM_DESTROY()
 	ON_REGISTERED_MESSAGE(WM_INITIALIZATION_COMPLETED, OnInitializationCompleted) // WM_INITIALIZATION_COMPLETED
+	ON_REGISTERED_MESSAGE(WM_POPUP_INFO_WINDOW, OnPopupInfoWindow) // WM_POPUP_INFO_WINDOW
 	ON_BN_CLICKED(IDC_BUTTON_ViewReport, &CAntiRansomwareUserDlg::OnBnClickedButtonViewreport)
 	ON_WM_MOVING()
 	ON_BN_CLICKED(IDC_BUTTON_RECOVERY, &CAntiRansomwareUserDlg::OnBnClickedButtonRecovery)
@@ -98,6 +108,24 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 	InitMyScanner();
 
 	m_nCountMonitor = 0;
+
+	/********** 멀티미디어 타이머 시작 **********/
+	//System에서 가능한 Resolution을 구한다.
+	//멀티미디어 타이머의 Resolution을 최소로 하기 위한 코드    
+	TIMECAPS tc;
+	timeGetDevCaps(&tc, sizeof(TIMECAPS));
+	unsigned int Resolution = min(max(tc.wPeriodMin, 0), tc.wPeriodMax);
+	timeBeginPeriod(Resolution);
+
+	//멀티미디어 타이머 생성
+	g_idMNTimer1 = timeSetEvent(
+		1000,         //Timer Delay(ms)
+		Resolution,  //delay의 정확도를 의미
+		OnTimerFunc,  //callback Function
+		(DWORD)this,   //CallBack에 사용할 전달 인자
+		TIME_PERIODIC);  //타이머의 타입(발생시마다 콜백 Call)
+
+						 /********** 멀티미디어 타이머 끝 **********/
 
 	PostMessageA(WM_INITIALIZATION_COMPLETED, NULL, NULL); // WM_INITIALIZATION_COMPLETED
 
@@ -146,7 +174,8 @@ bool CAntiRansomwareUserDlg::InitDialogUI()
 	m_gbtnToggle2.EnableToggle(TRUE);
 	m_gbtnToggle2.SetToggle(TRUE);
 
-	
+	m_gbtnMenuB1.LoadStdImage(IDB_PNG_MENU_B1_NORMAL, _T("PNG"));
+	m_gbtnMenuB1.LoadSthImage(IDB_PNG_MENU_B1_ACTIVE, _T("PNG"));
 
 	return true;
 }
@@ -155,6 +184,12 @@ bool CAntiRansomwareUserDlg::InitDialogUI()
 LRESULT CAntiRansomwareUserDlg::OnInitializationCompleted(WPARAM wParam, LPARAM lParam) // WM_INITIALIZATION_COMPLETED
 {
 	OnBnClickedButtonViewreport();
+	return S_OK;
+}
+
+LRESULT CAntiRansomwareUserDlg::OnPopupInfoWindow(WPARAM wParam, LPARAM lParam) // WM_POPUP_INFO_WINDOW
+{
+	g_pParent->DoPopupInfoWindow(0); // 팝업창
 	return S_OK;
 }
 
@@ -208,8 +243,8 @@ BOOL CAntiRansomwareUserDlg::OnEraseBkgnd(CDC* pDC)
 
 	dc.SelectObject(pOldBitmap);
 
-	return true;
 	//return CDialogEx::OnEraseBkgnd(pDC);
+	return true;
 }
 
 // 사용자가 최소화된 창을 끄는 동안에 커서가 표시되도록 시스템에서
@@ -266,6 +301,31 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonViewreport()
 	m_pAntiRansomwareReportDlg.ShowWindow(SW_SHOW);
 }
 
+
+void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWORD dw2)
+{
+	DWORD pid;
+	int nResult;
+
+	if (wTimerID == g_idMNTimer1) {
+		map<unsigned int, ArProcessBehavior*>::iterator itor;
+		ArProcessBehavior* itemArProcessBehavior;
+
+		// 프로세스 기록 조회
+		for (itor = g_pParent->m_mapProcessBehavior.begin(); itor != g_pParent->m_mapProcessBehavior.end(); ++itor) {
+			nResult = itor->second->CheckProcessInfo();
+			if(nResult == 1){
+				g_pParent->AddLogList("랜섬웨어 탐지!");
+				pid = FindRansomwareParantPID(itor->second->GetProcessInfo(PB_PROC_PID));
+				DoKillProcessTree(pid); // 프로세스 트리 종료
+				g_pParent->DoKillRecoveryRansomware(pid); // 파일 복구
+
+				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, NULL, NULL); // 팝업창
+				RefreshDesktopDirectory();
+			}
+		}
+	}
+}
 
 void CAntiRansomwareUserDlg::AddLogList(CString msg, bool wTime)
 {
@@ -329,6 +389,7 @@ bool CAntiRansomwareUserDlg::AddCheckFileExtension(CString strExt)
 	itor = m_listFileExt.begin();
 	while (itor != m_listFileExt.end()) {
 		if (strExt.Compare(*itor) == 0) {
+			LeaveCriticalSection(&m_csFileExt);
 			return false;
 		}
 		itor++;
@@ -886,7 +947,6 @@ BOOL DoKillProcess(DWORD pid)
 	return bResult;
 }
 
-
 BOOL DoKillProcessTree(DWORD pid)
 {
 	CString strTemp;
@@ -1016,12 +1076,12 @@ int CAntiRansomwareUserDlg::GetPermissionDirectory(CString strPath, DWORD pid)
 			while (itor != m_listCheckFile.end()) {
 				if (strPath.Compare((CString)itor->strPath) == 0) {
 					if (pid != dwProcId) {
-						LeaveCriticalSection(&m_csFileQueue);
 						nResult = 3; // 권한 없음
+						break;
 					}
 					else {
-						LeaveCriticalSection(&m_csFileQueue);
 						nResult = 1; // 접근 가능(me): Scheduled File
+						break;
 					}
 				}
 				itor++;
@@ -1045,7 +1105,7 @@ int CAntiRansomwareUserDlg::GetPermissionDirectory(CString strPath, DWORD pid)
 	return nResult;
 }
 
-// 프로세스 행위 기록
+// 프로세스 행위 관리
 int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 {
 	ArProcessBehavior* itemArProcessBehavior;
@@ -1063,7 +1123,11 @@ int CAntiRansomwareUserDlg::RecordProcessBehavior(PSCANNER_NOTIFICATION notifica
 		itemArProcessBehavior = m_mapProcessBehavior[notification->ulPID];
 	}
 
-	nReturn = itemArProcessBehavior->RecordProcessBehavior(notification);
+	// 프로세스 행위 기록
+	if (!itemArProcessBehavior->m_isRansomware)
+		nReturn = itemArProcessBehavior->RecordProcessBehavior(notification);
+	else
+		nReturn = 1;
 
 	return nReturn;
 }
@@ -1257,6 +1321,18 @@ int CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	return 0;
 }
 
+bool CAntiRansomwareUserDlg::DoPopupInfoWindow(int type)
+{
+	// 알림
+	if (m_pAntiRansomwarePopupDlg.GetSafeHwnd() == NULL) {
+		m_pAntiRansomwarePopupDlg.Create(IDD_ANTIRANSOMWAREPOPUPDLG);
+		m_pAntiRansomwarePopupDlg.InitPopupWindow(type);
+	}
+	m_pAntiRansomwarePopupDlg.ShowWindow(SW_SHOW);
+
+	return true;
+}
+
 
 // 파일 암호화 감시 스레드
 static UINT CheckRansomwareWorker(LPVOID lpParam)
@@ -1266,13 +1342,14 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 	list<ITEM_CHECK_FILE>::iterator itor;
 
 	bool result;
+	bool isNewFile;
 	int nResult;
-	DWORD pid;
 	CString strTemp;
 	ArProcessBehavior* itemArProcessBehavior;
 
 	while (pDlg->m_isRunning) {
 		result = false;
+		isNewFile = false;
 		// Wait Event
 		WaitForSingleObject(pDlg->m_hEventCheckRansomware, INFINITE);
 		pDlg->m_nCountMonitor++;
@@ -1285,27 +1362,19 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 					if (nResult == 1) { // 파일 변조됨
 						itemArProcessBehavior = pDlg->m_mapProcessBehavior[itor->pid];
 						itemArProcessBehavior->AddEventWriteFile(itor->strPath, true); // 의심
-						if (itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP) < 10) {
-							strTemp.Format("PB_COUNT_WRITE_SP: %d", itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
-							pDlg->AddLogList(strTemp);
-						}
-						else {
-							pDlg->AddLogList("[L]랜섬웨어 탐지!");
-							pDlg->ctr_editTargetPid.SetWindowTextA("[L]랜섬웨어 탐지!");
-
-							pid = FindRansomwareParantPID(itor->pid);
-							DoKillProcessTree(pid); // 프로세스 트리 종료
-							pDlg->DoKillRecoveryRansomware(pid); // 파일 복구
-							RefreshDesktopDirectory();
-						}
+						strTemp.Format("PB_COUNT_WRITE_SP: %d", itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
+						pDlg->AddLogList(strTemp);
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
 					else if (nResult == 0) {
-						pDlg->AddLogList("[L]이상 없음");
+						//pDlg->AddLogList("[L]이상 없음");
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
 					else if (nResult == -1) {
 						pDlg->AddLogList("[L]파일 열기 실패");
+						if (itor->nCheckCount < 10)
+							isNewFile = true;
+						itor->nCheckCount++;
 						if (PathFileExists(itor->strPath) == FALSE) {
 							strTemp.Format("[L]파일 없음: %s", itor->strPath);
 							pDlg->AddLogList(strTemp);
@@ -1326,10 +1395,15 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 
 		LeaveCriticalSection(&pDlg->m_csFileQueue);
 
-		if(result)
-			Sleep(1);
-		else
+		if(result){
+			if(isNewFile)
+				Sleep(1);
+			else
+				Sleep(10);
+		}
+		else{
 			Sleep(10);
+		}
 	}
 
 	pThreadCheckRansomware = NULL;
@@ -1380,6 +1454,7 @@ bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 	ITEM_CHECK_FILE tmpICF;
 	tmpICF.pid = pid;
 	tmpICF.strPath = strPath;
+	tmpICF.nCheckCount = 0;
 
 	EnterCriticalSection(&m_csFileQueue);
 
@@ -1387,6 +1462,7 @@ bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 	list<ITEM_CHECK_FILE>::iterator itor = m_listCheckFile.begin();
 	while (itor != m_listCheckFile.end()) {
 		if (strPath.Compare((CString)itor->strPath) == 0) {
+			LeaveCriticalSection(&m_csFileQueue);
 			return true;
 		}
 		itor++;

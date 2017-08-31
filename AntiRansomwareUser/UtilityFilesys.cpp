@@ -144,3 +144,14 @@ bool RefreshDesktopDirectory()
 
 	return true;
 }
+
+bool GenerateMD5(md5_byte_t *md5_out, CString strText)
+{
+	md5_state_t state;
+
+	md5_init(&state);
+	md5_append(&state, (const md5_byte_t *)LPSTR(LPCTSTR(strText)), strText.GetLength());
+	md5_finish(&state, md5_out);
+
+	return true;
+}

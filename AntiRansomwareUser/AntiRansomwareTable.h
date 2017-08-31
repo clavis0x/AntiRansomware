@@ -10,12 +10,14 @@ typedef struct sItemWriteFile { // 파일 쓰기 이벤트
 	unsigned int num;
 	CString strPath;
 	unsigned int num_back;
+	md5_byte_t pathHashMD5[16];
 } ITEM_WRITE_FILE;
 
 typedef struct sItemRenameFile { // 파일 이름 변경 이벤트
 	unsigned int num;
 	CString strSrc;
 	CString strDst;
+	md5_byte_t dstHashMD5[16];
 } ITEM_RENAME_FILE;
 
 typedef struct sItemDeleteFile { // 파일 삭제 이벤트
@@ -33,4 +35,5 @@ typedef struct sItemBackupFile { // 파일 백업 기록
 typedef struct sItemCheckFile { // 검사 대상 파일
 	DWORD pid;
 	CString strPath;
+	int nCheckCount;
 } ITEM_CHECK_FILE;

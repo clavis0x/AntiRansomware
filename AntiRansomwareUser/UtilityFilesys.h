@@ -14,3 +14,4 @@ BOOL GetDeviceNameToDriveLetter(const wchar_t * pDevicePath,wchar_t * bufDriveLe
 BOOL ConvertDevicePathToDrivePath(const wchar_t * pDevicePath, wchar_t *bufPath, size_t bufPathLen, PATH_INFO_EX *pPathInfo);
 void CreateFolder(CString p_strTargetRoot);
 bool RefreshDesktopDirectory();
+bool GenerateMD5(md5_byte_t *md5_out, CString strText);

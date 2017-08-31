@@ -59,6 +59,8 @@ using std::queue;
 using std::stack;
 using std::map;
 
+// Libraries
+#include "md5.h"
 #include "lib/ssdeep/fuzzy.h"
 
 

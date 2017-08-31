@@ -63,6 +63,12 @@
     <ClInclude Include="MemDC.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="AntiRansomwarePopupDlg.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="md5.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AntiRansomwareUser.cpp">
@@ -84,6 +90,12 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="GdipButton.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="AntiRansomwarePopupDlg.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="md5.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -169,6 +181,18 @@
     </Image>
     <Image Include="images\AntiRansomware_650x475.bmp">
       <Filter>리소스 파일\images</Filter>
+    </Image>
+    <Image Include="images\popup_red.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="images\popup_blue.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="images\menu_b1_normal.png">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="images\menu_b1_active.png">
+      <Filter>리소스 파일</Filter>
     </Image>
   </ItemGroup>
 </Project>

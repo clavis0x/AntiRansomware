@@ -35,6 +35,8 @@ private:
 	DWORD m_ppid;
 	CString m_strProcName;
 
+	int m_nTimeCount;
+
 	unsigned int m_cntCreate;
 	unsigned int m_cntWrite;
 	unsigned int m_cntWrite_sp;
@@ -56,9 +58,12 @@ private:
 	list<ITEM_BACKUP_FILE> m_listBackupFile;
 
 	PATH_INFO_EX m_pathInfoEx;
+public:
+	bool m_isRansomware;
 
 public:
 	ArProcessBehavior(DWORD pid);
+	int CheckProcessInfo();
 	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	bool RecoveryProcessBehavior();
 	bool AddEventNewFile(bool isDirectory, CString strPath);
@@ -71,5 +76,7 @@ public:
 	void AddLogList(CString msg, bool wTime = false);
 	DWORD GetProcessInfo(int type);
 	unsigned int GetCountBehavior(int type);
+	bool CheckRenameFilePath(md5_byte_t *md5);
+	bool CheckWriteFilePath(md5_byte_t *md5);
 	~ArProcessBehavior();
 };

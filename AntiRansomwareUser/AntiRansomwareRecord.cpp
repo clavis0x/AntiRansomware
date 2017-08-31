@@ -27,6 +27,9 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 		} while (Process32Next(handle, &pe));
 	}
 
+	m_nTimeCount = 60;
+	m_isRansomware = false;
+
 	m_cntCreate = 0;
 	m_cntDelete = 0;
 	m_cntRename = 0;
@@ -43,6 +46,32 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 }
 
 
+// 프로세스 정보 확인(타이머)
+int ArProcessBehavior::CheckProcessInfo()
+{
+	// 프로세스 실행 여부
+
+	// 랜섬웨어 검출
+	if (!m_isRansomware && m_cntWrite_sp >= 10) {
+		if(m_pid > 100)
+			m_isRansomware = true;
+		return 1;
+	}
+
+	// 일반 프로세스 오탐 방지
+	if (m_nTimeCount < 59){
+		m_nTimeCount++;
+	}
+	else {
+		m_nTimeCount = 0;
+		if(m_cntWrite_sp > 1)
+			m_cntWrite_sp--;
+	}
+
+	return 0;
+}
+
+
 // 프로세스 행위 기록
 int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 {
@@ -51,6 +80,7 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 	int nReturn = 0;
 	CString strTemp;
 	CString strFilePath;
+	CString strOrgFileName;
 	CString strBackupPath;
 	wchar_t szFilePath[MAX_FILE_PATH] = { 0 };
 	PROCESS_EVENT tmpPE;
@@ -68,6 +98,13 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 
 	strFilePath = szFilePath;
 	isCheckFileExt = g_pParent->DoCheckFileExtension(strFilePath); // 확장자 확인
+	if (!isCheckFileExt) {
+		// 제외 확장자
+		md5_byte_t dstHashMD5[16];
+		GenerateMD5(dstHashMD5, strFilePath); // MD5 생성
+		if (CheckRenameFilePath(dstHashMD5) == true)
+			isCheckFileExt = true;
+	}
 
 	// 백업 중 파일 검사 제외
 	if ((strFilePath).Compare(g_pParent->m_strBackingUpPath) == 0) {
@@ -99,8 +136,10 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			if (nPermission > 1)
 				break;
 			AddEventNewFile(notification->isDir, strFilePath); // Add Event
-			strTemp.Format("[신규] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
-			AddLogList(strTemp);
+			if (isCheckFileExt) {
+				strTemp.Format("[신규] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
+				AddLogList(strTemp);
+			}
 		}
 		else if (notification->CreateOptions == 2) {
 			if (nPermission == 3) {
@@ -122,6 +161,7 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 					nReturn = 1; // 권한 없음
 					break;
 				}
+
 				if (!isCheckFileExt) break; // 제외 확장자
 
 				if (notification->modeDelete) {
@@ -130,7 +170,7 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 				else {
 					// Process Event
 					m_cntWrite++;
-
+					AddEventWriteFile(strFilePath, isCheckFileExt); // Add Event
 					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 					AddLogList(strTemp);
 					nReturn = 100; // Backup!
@@ -143,7 +183,11 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 		strTemp.Format("[Cleanup] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 		AddLogList(strTemp);
 		if (!notification->isDir) {
-			g_pParent->AddCheckRansomwareFile(m_pid, strFilePath);
+			md5_byte_t pathHashMD5[16];
+			GenerateMD5(pathHashMD5, strFilePath); // MD5 생성
+			if (CheckWriteFilePath(pathHashMD5) == true) {
+				g_pParent->AddCheckRansomwareFile(m_pid, strFilePath);
+			}
 		}
 		break;
 	case fltType_PreWrite:
@@ -152,14 +196,24 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 		AddLogList(strTemp);
 		break;
 	case fltType_PreSetInformation:
-		nResult = g_pParent->GetPermissionDirectory((CString)(wchar_t*)notification->OrgFileName);
+		strOrgFileName = (CString)m_pathInfoEx.szLastDriveLetter + (CString)(wchar_t*)notification->OrgFileName;
+		nResult = g_pParent->GetPermissionDirectory(strOrgFileName);
 		if (nResult == 3 || nPermission == 3) {
 			nReturn = 1; // 권한 없음
 			break;
 		}
 		if (!notification->modeDelete) {
-			AddEventRenameFile((CString)m_pathInfoEx.szLastDriveLetter + (CString)(wchar_t*)notification->OrgFileName, strFilePath); // Add Event
-			strTemp.Format("[이름 변경] 변경 전 - %s: %s%s", (notification->isDir) ? "Dir" : "File", (CString)m_pathInfoEx.szLastDriveLetter, (CString)(wchar_t*)notification->OrgFileName);
+			isCheckFileExt = g_pParent->DoCheckFileExtension(strOrgFileName); // 확장자 확인(Org)
+			if (!isCheckFileExt) {
+				// 제외 확장자
+				md5_byte_t dstHashMD5[16];
+				GenerateMD5(dstHashMD5, strOrgFileName); // MD5 생성
+				if (CheckRenameFilePath(dstHashMD5) == true)
+					isCheckFileExt = true;
+			}
+			if (!isCheckFileExt) break; // 제외 확장자
+			AddEventRenameFile(strOrgFileName, strFilePath); // Add Event
+			strTemp.Format("[이름 변경] 변경 전 - %s: %s", (notification->isDir) ? "Dir" : "File", strOrgFileName);
 			AddLogList(strTemp);
 			strTemp.Format("[이름 변경] 변경 후 - %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 			AddLogList(strTemp);
@@ -171,6 +225,7 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			nReturn = 1; // 권한 없음
 			break;
 		}
+		if (!isCheckFileExt) break; // 제외 확장자
 		AddEventDeleteFile(strFilePath, isCheckFileExt); // Add Event
 		strTemp.Format("[삭제] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 		AddLogList(strTemp);
@@ -182,7 +237,6 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 
 	return nReturn;
 }
-
 
 // 프로세스 행위 복구
 bool ArProcessBehavior::RecoveryProcessBehavior()
@@ -313,7 +367,6 @@ bool ArProcessBehavior::AddEventNewFile(bool isDirectory, CString strPath)
 	return true;
 }
 
-
 // 파일(디렉토리) 이름 변경 이벤트 추가
 bool ArProcessBehavior::AddEventRenameFile(CString strSrc, CString strDst)
 {
@@ -325,7 +378,17 @@ bool ArProcessBehavior::AddEventRenameFile(CString strSrc, CString strDst)
 	tmpIRF.num = numEvent;
 	tmpIRF.strSrc = strSrc;
 	tmpIRF.strDst = strDst;
+	GenerateMD5(tmpIRF.dstHashMD5, strDst); // MD5 생성
 	m_listRenameFile.push_back(tmpIRF);
+
+	/*
+	// MD5 Test
+	int di;
+	char szStrMD5[32 + 1] = { 0 };
+	for (di = 0; di < 16; ++di)
+		sprintf(szStrMD5 + di * 2, "%02x", tmpIRF.dstHashMD5[di]);
+	g_pParent->AddLogList((CString)"[Rename] MD5 : " + strDst + " -> " + (CString)szStrMD5);
+	*/
 
 	// Process Event
 	m_cntRename++;
@@ -337,7 +400,21 @@ bool ArProcessBehavior::AddEventRenameFile(CString strSrc, CString strDst)
 	return true;
 }
 
+// 파일(디렉토리) 이름 변경 이벤트 검색(MD5)
+bool ArProcessBehavior::CheckRenameFilePath(md5_byte_t *md5)
+{
+	list<ITEM_RENAME_FILE>::reverse_iterator ritorIRF; // rename
+	ritorIRF = m_listRenameFile.rbegin();
+	while (ritorIRF != m_listRenameFile.rend())
+	{
+		if (memcmp(ritorIRF->dstHashMD5, md5, 16) == 0)
+			return true;
+		ritorIRF++;
+	}
+	return false;
+}
 
+// 파일 쓰기 이벤트 추가
 bool ArProcessBehavior::AddEventWriteFile(CString strPath, bool isBackup)
 {
 	unsigned int tmpBackupNum = -1;
@@ -369,6 +446,7 @@ bool ArProcessBehavior::AddEventWriteFile(CString strPath, bool isBackup)
 	tmpIWF.num = numEvent;
 	tmpIWF.num_back = tmpBackupNum;
 	tmpIWF.strPath = strPath;
+	GenerateMD5(tmpIWF.pathHashMD5, strPath); // MD5 생성
 	m_listWriteFile.push_back(tmpIWF);
 
 	// Process Event
@@ -379,6 +457,20 @@ bool ArProcessBehavior::AddEventWriteFile(CString strPath, bool isBackup)
 	m_stackEventRecord.push(tmpPE);
 
 	return true;
+}
+
+// 파일 쓰기 이벤트 검색(MD5)
+bool ArProcessBehavior::CheckWriteFilePath(md5_byte_t *md5)
+{
+	list<ITEM_WRITE_FILE>::reverse_iterator ritorIWF; // write
+	ritorIWF = m_listWriteFile.rbegin();
+	while (ritorIWF != m_listWriteFile.rend())
+	{
+		if (memcmp(ritorIWF->pathHashMD5, md5, 16) == 0)
+			return true;
+		ritorIWF++;
+	}
+	return false;
 }
 
 // 파일 삭제 이벤트 추가

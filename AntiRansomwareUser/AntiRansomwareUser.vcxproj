@@ -108,6 +108,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\inc\scanuk.h" />
+    <ClInclude Include="AntiRansomwarePopupDlg.h" />
     <ClInclude Include="AntiRansomwareReportDlg.h" />
     <ClInclude Include="AntiRansomwareRecord.h" />
     <ClInclude Include="AntiRansomwareTable.h" />
@@ -115,6 +116,7 @@
     <ClInclude Include="AntiRansomwareUserDlg.h" />
     <ClInclude Include="CGdiPlusBitmap.h" />
     <ClInclude Include="GdipButton.h" />
+    <ClInclude Include="md5.h" />
     <ClInclude Include="MemDC.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scanuser.h" />
@@ -123,11 +125,13 @@
     <ClInclude Include="UtilityFilesys.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AntiRansomwarePopupDlg.cpp" />
     <ClCompile Include="AntiRansomwareRecord.cpp" />
     <ClCompile Include="AntiRansomwareReportDlg.cpp" />
     <ClCompile Include="AntiRansomwareUser.cpp" />
     <ClCompile Include="AntiRansomwareUserDlg.cpp" />
     <ClCompile Include="GdipButton.cpp" />
+    <ClCompile Include="md5.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -158,8 +162,12 @@
     <Image Include="images\menu4_normal.png" />
     <Image Include="images\menu5_active.png" />
     <Image Include="images\menu5_normal.png" />
+    <Image Include="images\menu_b1_active.png" />
+    <Image Include="images\menu_b1_normal.png" />
     <Image Include="images\minimum_active.png" />
     <Image Include="images\minimum_normal.png" />
+    <Image Include="images\popup_blue.bmp" />
+    <Image Include="images\popup_red.bmp" />
     <Image Include="images\toggle_off_active.png" />
     <Image Include="images\toggle_off_normal.png" />
     <Image Include="images\toggle_on_active.png" />

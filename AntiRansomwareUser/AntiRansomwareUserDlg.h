@@ -4,6 +4,7 @@
 
 #pragma once
 #include "afxwin.h"
+#include "AntiRansomwarePopupDlg.h"
 #include "AntiRansomwareReportDlg.h"
 #include "AntiRansomwareRecord.h"
 #include "scanuser.h"
@@ -11,6 +12,7 @@
 #include "GdipButton.h"
 
 const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
+const UINT WM_POPUP_INFO_WINDOW = ::RegisterWindowMessage("WM_POPUP_INFO_WINDOW");
 
 typedef struct sScanLog {
 	CString timeStamp;
@@ -69,6 +71,7 @@ protected:
 	CGdipButton	m_gbtnMenu5;
 	CGdipButton	m_gbtnToggle1; // 행위기반
 	CGdipButton	m_gbtnToggle2; // 시그니처
+	CGdipButton	m_gbtnMenuB1;
 
 	CBitmap lamp_image;
 
@@ -78,8 +81,10 @@ protected:
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
 public:
+	CAntiRansomwarePopupDlg m_pAntiRansomwarePopupDlg;
 	CAntiRansomwareReportDlg m_pAntiRansomwareReportDlg;
 	LRESULT OnInitializationCompleted(WPARAM wParam, LPARAM lParam);
+	LRESULT OnPopupInfoWindow(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnMoving(UINT fwSide, LPRECT pRect);
 	afx_msg void OnDestroy();
 	afx_msg void OnBnClickedButtonViewreport();
@@ -94,6 +99,7 @@ public:
 	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	int GetPermissionDirectory(CString strPath, DWORD pid = 0);
 	int DoCheckRansomware(CString strPath);
+	bool DoPopupInfoWindow(int type);
 	bool DoKillRecoveryRansomware(DWORD pid);
 	bool AddCheckRansomwareFile(DWORD pid, CString strPath);
 	CString GetBackupFilePath(CString strPath);
