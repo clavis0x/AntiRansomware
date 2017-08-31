@@ -1,4 +1,4 @@
-//
+// 
 // GdipButton.h : Version 1.0 - see article at CodeProject.com
 //
 // Author:  Darren Sessions
