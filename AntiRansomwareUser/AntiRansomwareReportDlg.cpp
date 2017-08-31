@@ -1,5 +1,5 @@
 // AntiRansomwareReportDlg.cpp : 구현 파일입니다.
-// 
+//
 
 #include "stdafx.h"
 #include "AntiRansomwareUser.h"
