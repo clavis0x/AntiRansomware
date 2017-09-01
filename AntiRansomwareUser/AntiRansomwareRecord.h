@@ -53,6 +53,7 @@ private:
 
 	list<ITEM_NEW_FILE> m_listNewFile;
 	list<ITEM_WRITE_FILE> m_listWriteFile;
+	list<ITEM_WRITE_FILE> m_listWriteSpFile;
 	list<ITEM_RENAME_FILE> m_listRenameFile;
 	list<ITEM_DELETE_FILE> m_listDeleteFile;
 	list<ITEM_BACKUP_FILE> m_listBackupFile;
@@ -69,6 +70,7 @@ public:
 	bool AddEventNewFile(bool isDirectory, CString strPath);
 	bool AddEventRenameFile(CString strSrc, CString strDst);
 	bool AddEventWriteFile(CString strPath, bool isBackup);
+	bool AddEventWriteSpFile(CString strPath, bool isBackup);
 	bool AddEventDeleteFile(CString strPath, bool isBackup);
 	unsigned int AddEventBackupFile(CString strPath);
 	bool DoRecoveryFile(unsigned int num_back, CString strPath);

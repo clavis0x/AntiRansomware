@@ -309,6 +309,7 @@ void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWOR
 {
 	DWORD pid;
 	int nResult;
+	CString strTemp;
 
 	if (wTimerID == g_idMNTimer1) {
 		map<unsigned int, ArProcessBehavior*>::iterator itor;
@@ -318,7 +319,8 @@ void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWOR
 		for (itor = g_pParent->m_mapProcessBehavior.begin(); itor != g_pParent->m_mapProcessBehavior.end(); ++itor) {
 			nResult = itor->second->CheckProcessInfo();
 			if(nResult == 1){
-				g_pParent->AddLogList("랜섬웨어 탐지!");
+				strTemp.Format("랜섬웨어 탐지! - pid: %d", itor->first);
+				g_pParent->AddLogList(strTemp);
 				pid = FindRansomwareParantPID(itor->second->GetProcessInfo(PB_PROC_PID));
 				DoKillProcessTree(pid); // 프로세스 트리 종료
 				g_pParent->DoKillRecoveryRansomware(pid); // 파일 복구
@@ -1023,8 +1025,10 @@ DWORD FindRansomwareParantPID(DWORD pid)
 			prev_pid = pid;
 			pid = ppid;
 		}
-		if (result == false)
-			return false;
+		if (result == false){
+			isFound = true;
+			break;
+		}
 	}
 	if (isFound == false) {
 		return false;
@@ -1062,8 +1066,8 @@ int CAntiRansomwareUserDlg::GetPermissionDirectory(CString strPath, DWORD pid)
 	if (strPath.Find(strSafePath, 0) >= 0) {
 		nResult = 0;
 		if (pid != dwProcId) {
-			strTemp.Format("!! 권한 없음(Safe) !! : %s", strPath);
-			g_pParent->AddLogList(strTemp);
+			//strTemp.Format("!! 권한 없음(Safe) !! : %s", strPath);
+			//g_pParent->AddLogList(strTemp);
 			nResult = 3; // 권한 없음
 		}
 		else {
@@ -1100,8 +1104,8 @@ int CAntiRansomwareUserDlg::GetPermissionDirectory(CString strPath, DWORD pid)
 				break;
 		}
 		if (nResult == 3) {
-			strTemp.Format("!! 권한 없음(Scheduled) !! : %s", strPath);
-			g_pParent->AddLogList(strTemp);
+			//strTemp.Format("!! 권한 없음(Scheduled) !! : %s", strPath);
+			//g_pParent->AddLogList(strTemp);
 		}
 	}
 
@@ -1230,13 +1234,13 @@ int CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	// 비교 파일 열기
 	fpTarget = fopen((LPSTR)(LPCTSTR)strPath, "rb");
 	if (fpTarget == NULL){
-		AddLogList("파일 열기 실패(fpTarget) : " + strPath);
+		//AddLogList("파일 열기 실패(fpTarget) : " + strPath);
 		return -1;
 	}
 
 	fpBackup = fopen((LPSTR)(LPCTSTR)strBackupPath, "rb");
 	if (fpBackup == NULL){
-		AddLogList("파일 열기 실패(fpBackup) : " + strBackupPath);
+		//AddLogList("파일 열기 실패(fpBackup) : " + strBackupPath);
 		fclose(fpTarget);
 		return -1;
 	}
@@ -1364,27 +1368,32 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 					nResult = pDlg->DoCheckRansomware(itor->strPath); // 랜섬웨어 감염 확인
 					if (nResult == 1) { // 파일 변조됨
 						itemArProcessBehavior = pDlg->m_mapProcessBehavior[itor->pid];
-						itemArProcessBehavior->AddEventWriteFile(itor->strPath, true); // 의심
-						strTemp.Format("PB_COUNT_WRITE_SP: %d", itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
+						itemArProcessBehavior->AddEventWriteSpFile(itor->strPath, true); // 의심
+						strTemp.Format("[%d] PB_COUNT_WRITE_SP: %d", itor->pid, itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
 						pDlg->AddLogList(strTemp);
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
 					else if (nResult == 0) {
-						//pDlg->AddLogList("[L]이상 없음");
+						//pDlg->AddLogList("[L] 이상 없음");
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
 					else if (nResult == -1) {
-						pDlg->AddLogList("[L]파일 열기 실패");
 						if (itor->nCheckCount < 10)
 							isNewFile = true;
 						itor->nCheckCount++;
 						if (PathFileExists(itor->strPath) == FALSE) {
-							strTemp.Format("[L]파일 없음: %s", itor->strPath);
+							strTemp.Format("[L] 파일 없음: %s", itor->strPath);
 							pDlg->AddLogList(strTemp);
 							itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 						}
 						else {
-							itor++;
+							if (itor->nCheckCount > 100){
+								pDlg->AddLogList("[L] 파일 열기 실패 (check count)");
+								itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
+							}
+							else {
+								itor++;
+							}
 						}
 					}
 				}

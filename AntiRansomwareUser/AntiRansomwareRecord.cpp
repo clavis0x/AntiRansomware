@@ -124,8 +124,7 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			break;
 		}
 		if (!isCheckFileExt) break; // 제외 확장자
-
-		// 이벤트 기록은 Post에서
+		AddEventWriteFile(strFilePath, isCheckFileExt); // Add Event
 		strTemp.Format("[덮어쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 		AddLogList(strTemp);
 		if(DoBackupFile(strFilePath, 1)) // 파일 백업
@@ -142,18 +141,13 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			}
 		}
 		else if (notification->CreateOptions == 2) {
+			// 덮어쓰기 Post
 			if (nPermission == 3) {
 				nReturn = 1; // 권한 없음
 				break;
 			}
 			if (!isCheckFileExt) break; // 제외 확장자
 			// Process Event
-			m_cntWrite++;
-
-			//strTemp.Format("[덮어쓰기] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
-			//AddLogList(strTemp);
-			//if(DoBackupFile(strFilePath)) // 파일 백업
-			//	nReturn = 100; // Backup!
 		}
 		else {
 			if (!notification->isDir) {
@@ -161,15 +155,12 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 					nReturn = 1; // 권한 없음
 					break;
 				}
-
 				if (!isCheckFileExt) break; // 제외 확장자
-
 				if (notification->modeDelete) {
 					// 파일 삭제
 				}
 				else {
 					// Process Event
-					m_cntWrite++;
 					AddEventWriteFile(strFilePath, isCheckFileExt); // Add Event
 					strTemp.Format("[수정] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 					AddLogList(strTemp);
@@ -303,8 +294,8 @@ bool ArProcessBehavior::RecoveryProcessBehavior()
 			}
 			break;
 		case 2: // 파일 쓰기 -> 파일 복구
-			ritorIWF = m_listWriteFile.rbegin();
-			while (ritorIWF != m_listWriteFile.rend())
+			ritorIWF = m_listWriteSpFile.rbegin();
+			while (ritorIWF != m_listWriteSpFile.rend())
 			{
 				if (tmpPE.numEvent == ritorIWF->num) {
 					if (ritorIWF->num_back != -1) {
@@ -314,7 +305,7 @@ bool ArProcessBehavior::RecoveryProcessBehavior()
 						AddLogList("Pass: " + ritorIWF->strPath, true); // Pass
 					}
 					list<ITEM_WRITE_FILE>::iterator itorIWF = ritorIWF.base();
-					m_listWriteFile.erase(--itorIWF);
+					m_listWriteSpFile.erase(--itorIWF);
 					break;
 				}
 				ritorIWF++;
@@ -430,7 +421,7 @@ bool ArProcessBehavior::AddEventWriteFile(CString strPath, bool isBackup)
 			if (strPath.Compare(ritorIWF->strPath) == 0) {
 				tmpBackupNum = ritorIWF->num_back;
 				ritorIWF->num_back = -1; // 이전 백업 기록 삭제(중복 복구 방지)
-				m_cntWrite_sp--;
+				m_cntWrite--;
 				break;
 			}
 			ritorIWF++;
@@ -448,6 +439,51 @@ bool ArProcessBehavior::AddEventWriteFile(CString strPath, bool isBackup)
 	tmpIWF.strPath = strPath;
 	GenerateMD5(tmpIWF.pathHashMD5, strPath); // MD5 생성
 	m_listWriteFile.push_back(tmpIWF);
+
+	// Process Event
+	m_cntWrite++;
+
+	tmpPE.mode = 2; // write
+	tmpPE.numEvent = numEvent;
+	m_stackEventRecord.push(tmpPE);
+
+	return true;
+}
+
+// 감염 파일 쓰기 이벤트 추가
+bool ArProcessBehavior::AddEventWriteSpFile(CString strPath, bool isBackup)
+{
+	unsigned int tmpBackupNum = -1;
+	PROCESS_EVENT tmpPE;
+	ITEM_WRITE_FILE tmpIWF;
+	list<ITEM_WRITE_FILE>::reverse_iterator ritorIWF; // write
+	unsigned int numEvent = m_numWriteFile++;
+
+	if (isBackup) {
+		ritorIWF = m_listWriteSpFile.rbegin();
+		while (ritorIWF != m_listWriteSpFile.rend())
+		{
+			if (strPath.Compare(ritorIWF->strPath) == 0) {
+				tmpBackupNum = ritorIWF->num_back;
+				ritorIWF->num_back = -1; // 이전 백업 기록 삭제(중복 복구 방지)
+				m_cntWrite_sp--;
+				break;
+			}
+			ritorIWF++;
+		}
+
+		// 백업 기록 없을 경우
+		if (tmpBackupNum == -1) {
+			tmpBackupNum = AddEventBackupFile(strPath); // 백업 이벤트
+		}
+	}
+
+	// Write File Event
+	tmpIWF.num = numEvent;
+	tmpIWF.num_back = tmpBackupNum;
+	tmpIWF.strPath = strPath;
+	GenerateMD5(tmpIWF.pathHashMD5, strPath); // MD5 생성
+	m_listWriteSpFile.push_back(tmpIWF);
 
 	// Process Event
 	m_cntWrite_sp++;
