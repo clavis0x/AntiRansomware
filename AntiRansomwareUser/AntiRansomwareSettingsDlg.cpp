@@ -24,18 +24,16 @@ CAntiRansomwareSettingsDlg::~CAntiRansomwareSettingsDlg()
 void CAntiRansomwareSettingsDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_CHECK_ENABLE_BEHAVIOR_DETECTION, ctr_checkEnableBehaviorDetection);
-	DDX_Control(pDX, IDC_EDIT_PROTECTION_EXT, ctr_editProtectionExt);
-	DDX_Control(pDX, IDC_COMBO_BACKUP_DAYS, ctr_comboBackupDays);
-	DDX_Control(pDX, IDC_CHECK_ENABLE_AUTOUPDATE, ctr_checkEnableAutoUpdate);
-	DDX_Control(pDX, IDC_CHECK_ENABLE_SIGNATURE_DETECTION, ctr_checkEnableSignatureDetection);
-	DDX_Control(pDX, IDC_EDIT_UPDATE_TIME, ctr_editUpdateTime);
-	DDX_Control(pDX, IDC_COMBO_RANSOM_HANDLING, ctr_comboRansomHandling);
+	DDX_Control(pDX, IDC_TAB_SETTINGS, ctr_tabSettings);
 }
 
 
 BEGIN_MESSAGE_MAP(CAntiRansomwareSettingsDlg, CDialog)
 	ON_WM_CLOSE()
+	ON_NOTIFY(TCN_SELCHANGE, IDC_TAB_SETTINGS, &CAntiRansomwareSettingsDlg::OnTcnSelchangeTabSettings)
+	ON_NOTIFY(TCN_SELCHANGING, IDC_TAB_SETTINGS, &CAntiRansomwareSettingsDlg::OnTcnSelchangingTabSettings)
+	ON_BN_CLICKED(IDC_BUTTON_CONFIRM, &CAntiRansomwareSettingsDlg::OnBnClickedButtonConfirm)
+	ON_BN_CLICKED(IDC_BUTTON_CANCEL, &CAntiRansomwareSettingsDlg::OnBnClickedButtonCancel)
 END_MESSAGE_MAP()
 
 
@@ -47,28 +45,27 @@ BOOL CAntiRansomwareSettingsDlg::OnInitDialog()
 	CDialog::OnInitDialog();
 
 	// TODO:  여기에 추가 초기화 작업을 추가합니다.
-	// 행위기반 탐지
-	ctr_checkEnableBehaviorDetection.SetCheck(1);
+	CString strTab = _T("");
 
-	ctr_editProtectionExt.SetWindowTextA("txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar");
+	strTab.Format(_T("탐지 설정"));
+	ctr_tabSettings.InsertItem(0, strTab, 0);
 
-	ctr_comboBackupDays.AddString("1");
-	ctr_comboBackupDays.AddString("3");
-	ctr_comboBackupDays.AddString("7");
-	ctr_comboBackupDays.AddString("14");
-	ctr_comboBackupDays.AddString("30");
-	ctr_comboBackupDays.AddString("180");
-	ctr_comboBackupDays.AddString("365");
-	ctr_comboBackupDays.SetCurSel(2);
+	strTab.Format(_T("백업 설정"));
+	ctr_tabSettings.InsertItem(1, strTab, 0);
 
-	ctr_comboRansomHandling.AddString("삭제");
-	ctr_comboRansomHandling.AddString("물어보고 처리");
-	ctr_comboRansomHandling.SetCurSel(0);
+	strTab.Format(_T("기타 설정"));
+	ctr_tabSettings.InsertItem(2, strTab, 0);
 
-	// 시그니처 탐지
-	ctr_checkEnableSignatureDetection.SetCheck(1);
-	ctr_checkEnableAutoUpdate.SetCheck(1);
-	ctr_editUpdateTime.SetWindowTextA("3");
+	CRect Rect;
+	ctr_tabSettings.GetClientRect(&Rect);
+
+	m_TabDetectionSettings.Create(IDD_TAB_DETECTIONSETTINGSDLG, &ctr_tabSettings);
+	m_TabDetectionSettings.SetWindowPos(NULL, 2, 23, Rect.Width() - 6, Rect.Height() - 26, SWP_SHOWWINDOW | SWP_NOZORDER);
+	m_pwndShow = &m_TabDetectionSettings;
+
+	m_TabBackupSettings.Create(IDD_TAB_BACKUPSETTINGSDLG, &ctr_tabSettings);
+	m_TabBackupSettings.SetWindowPos(NULL, 2, 23, Rect.Width() - 6, Rect.Height() - 26, SWP_NOZORDER);
+	m_pwndShow = &m_TabBackupSettings;
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 예외: OCX 속성 페이지는 FALSE를 반환해야 합니다.
@@ -81,4 +78,51 @@ void CAntiRansomwareSettingsDlg::OnClose()
 	DestroyWindow();
 
 	CDialog::OnClose();
+}
+
+
+void CAntiRansomwareSettingsDlg::OnTcnSelchangeTabSettings(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nIndex = ctr_tabSettings.GetCurSel();
+
+	m_pwndShow = NULL;
+	m_TabDetectionSettings.ShowWindow(SW_HIDE);
+	m_TabBackupSettings.ShowWindow(SW_HIDE);
+
+	switch (nIndex)
+	{
+		case 0:
+			m_TabDetectionSettings.ShowWindow(SW_SHOW);
+			break;
+		case 1:
+			m_TabBackupSettings.ShowWindow(SW_SHOW);
+			break;
+	}
+
+	*pResult = 0;
+}
+
+
+void CAntiRansomwareSettingsDlg::OnTcnSelchangingTabSettings(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	m_prevCurSel = ctr_tabSettings.GetCurSel();
+	*pResult = 0;
+}
+
+
+void CAntiRansomwareSettingsDlg::OnBnClickedButtonConfirm()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	EndDialog(IDOK);
+	DestroyWindow();
+}
+
+
+void CAntiRansomwareSettingsDlg::OnBnClickedButtonCancel()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	EndDialog(IDCANCEL);
+	DestroyWindow();
 }

@@ -21,7 +21,8 @@ protected:
 
 	int m_typePopup;
 	CBitmap m_background;
-	CFont m_font;
+	CFont m_fontTitle;
+	CFont m_fontMessage;
 
 // Anti-Ransomware Popup
 public:

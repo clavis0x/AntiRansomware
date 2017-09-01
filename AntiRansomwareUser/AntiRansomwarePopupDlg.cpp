@@ -60,11 +60,16 @@ BOOL CAntiRansomwarePopupDlg::OnInitDialog()
 			SetWindowPos(NULL, m_Desktowidth - cRect.Width() - 10, m_DesktopHeight - cRect.Height() - 10, 0, 0, SWP_NOSIZE);
 	}
 
-	m_font.CreateFont(22, 0, 0, 0, FW_HEAVY, FALSE, FALSE, 0, DEFAULT_CHARSET,
+	m_fontTitle.CreateFont(22, 0, 0, 0, FW_HEAVY, FALSE, FALSE, 0, DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
 		DEFAULT_PITCH | FF_SWISS, "맑은 고딕");
 
-	GetDlgItem(IDC_STATIC_TITLE)->SetFont(&m_font);
+	m_fontMessage.CreateFont(20, 0, 0, 0, FW_HEAVY, FALSE, FALSE, 0, DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, "맑은 고딕");
+
+	GetDlgItem(IDC_STATIC_TITLE)->SetFont(&m_fontTitle);
+	GetDlgItem(IDC_STATIC_MESSAGE)->SetFont(&m_fontMessage);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 예외: OCX 속성 페이지는 FALSE를 반환해야 합니다.
@@ -100,6 +105,8 @@ HBRUSH CAntiRansomwarePopupDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	HBRUSH hbr = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 
 	// TODO:  여기서 DC의 특성을 변경합니다.
+
+	// TODO:  기본값이 적당하지 않으면 다른 브러시를 반환합니다.
 	switch (nCtlColor)
 	{
 	case CTLCOLOR_STATIC:
@@ -110,10 +117,12 @@ HBRUSH CAntiRansomwarePopupDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 			pDC->SetBkMode(TRANSPARENT);
 			return (HBRUSH)GetStockObject(NULL_BRUSH);;
 		}
+		else {
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)GetStockObject(NULL_BRUSH);;
+		}
 	}
 	}
-
-	// TODO:  기본값이 적당하지 않으면 다른 브러시를 반환합니다.
 	return hbr;
 }
 
@@ -131,7 +140,8 @@ void CAntiRansomwarePopupDlg::OnDestroy()
 	CDialog::OnDestroy();
 
 	// TODO: 여기에 메시지 처리기 코드를 추가합니다.
-	m_font.DeleteObject();
+	m_fontTitle.DeleteObject();
+	m_fontMessage.DeleteObject();
 }
 
 

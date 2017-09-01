@@ -122,6 +122,8 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scanuser.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="Tab_BackupSettingsDlg.h" />
+    <ClInclude Include="Tab_DetectionSettingsDlg.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="UtilityFilesys.h" />
   </ItemGroup>
@@ -138,6 +140,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Tab_BackupSettingsDlg.cpp" />
+    <ClCompile Include="Tab_DetectionSettingsDlg.cpp" />
     <ClCompile Include="UtilityFilesys.cpp" />
   </ItemGroup>
   <ItemGroup>
