@@ -15,6 +15,7 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 	CString strTemp;
 	HANDLE handle = NULL;
 	PROCESSENTRY32 pe = { 0 };
+	char szPath[1024] = { 0 };
 
 	pe.dwSize = sizeof(PROCESSENTRY32);
 	handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -27,6 +28,19 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 		} while (Process32Next(handle, &pe));
 	}
 
+	m_pid = pid; // pid
+	m_ppid = pe.th32ParentProcessID; // ppid
+	m_strProcName = pe.szExeFile; // process name
+
+	// process path
+	handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, m_pid);
+	if (GetModuleFileNameEx(handle, NULL, szPath, 1024)) {
+		m_strProcPath = szPath;
+		int nPos = m_strProcPath.ReverseFind('\\'); // 실행파일 경로에서 파일명 제외
+		if (nPos > 0)
+			m_strProcPath = m_strProcPath.Left(nPos);
+	}
+
 	m_nTimeCount = 60;
 	m_isRansomware = false;
 
@@ -35,10 +49,6 @@ ArProcessBehavior::ArProcessBehavior(DWORD pid)
 	m_cntRename = 0;
 	m_cntWrite = 0;
 	m_cntWrite_sp = 0;
-
-	m_pid = pid; // pid
-	m_ppid = pe.th32ParentProcessID; // ppid
-	m_strProcName = pe.szExeFile; // process name
 
 	// Process Info
 	strTemp.Format("[%d] %s / ppid: %d", m_pid, m_strProcName, m_ppid);
@@ -671,6 +681,19 @@ DWORD ArProcessBehavior::GetProcessInfo(int type)
 		return m_ppid;
 	default:
 		return 0;
+	}
+}
+
+CString ArProcessBehavior::GetProcessName(int type)
+{
+	switch (type)
+	{
+	case PB_PROC_NAME:
+		return m_strProcName;
+	case PB_PROC_PATH:
+		return m_strProcPath;
+	default:
+		return (CString)"";
 	}
 }
 

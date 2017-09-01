@@ -10,7 +10,9 @@
 // Get Process Info
 enum {
 	PB_PROC_PID = 1,
-	PB_PROC_PPID
+	PB_PROC_PPID,
+	PB_PROC_NAME = 10,
+	PB_PROC_PATH
 };
 
 // Get Count
@@ -34,6 +36,7 @@ private:
 	DWORD m_pid;
 	DWORD m_ppid;
 	CString m_strProcName;
+	CString m_strProcPath;
 
 	int m_nTimeCount;
 
@@ -77,6 +80,7 @@ public:
 	bool DoBackupFile(CString strPath, int type = 0);
 	void AddLogList(CString msg, bool wTime = false);
 	DWORD GetProcessInfo(int type);
+	CString GetProcessName(int type);
 	unsigned int GetCountBehavior(int type);
 	bool CheckRenameFilePath(md5_byte_t *md5);
 	bool CheckWriteFilePath(md5_byte_t *md5);

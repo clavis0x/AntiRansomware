@@ -59,6 +59,8 @@ public:
 	// 백업 중 경로
 	CString m_strBackingUpPath;
 
+	ITEM_POPUP_MESSAGE m_sPopupMessage;
+
 // 구현입니다.
 protected:
 	HICON m_hIcon;

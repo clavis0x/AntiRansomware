@@ -114,6 +114,11 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 
 	m_nCountMonitor = 0;
 
+	// Popup Message
+	m_sPopupMessage.pid = 0;
+	m_sPopupMessage.strProcName = "";
+	m_sPopupMessage.strProcPath = "";
+
 	/********** 멀티미디어 타이머 시작 **********/
 	//System에서 가능한 Resolution을 구한다.
 	//멀티미디어 타이머의 Resolution을 최소로 하기 위한 코드    
@@ -192,6 +197,13 @@ LRESULT CAntiRansomwareUserDlg::OnInitializationCompleted(WPARAM wParam, LPARAM 
 
 LRESULT CAntiRansomwareUserDlg::OnPopupInfoWindow(WPARAM wParam, LPARAM lParam) // WM_POPUP_INFO_WINDOW
 {
+	ArProcessBehavior* itemArProcessBehavior;
+	itemArProcessBehavior = m_mapProcessBehavior[wParam];
+
+	m_sPopupMessage.pid = wParam;
+	m_sPopupMessage.strProcName = itemArProcessBehavior->GetProcessName(PB_PROC_NAME);
+	m_sPopupMessage.strProcPath = itemArProcessBehavior->GetProcessName(PB_PROC_PATH);
+
 	g_pParent->DoPopupInfoWindow(0); // 팝업창
 	return S_OK;
 }
@@ -325,7 +337,7 @@ void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWOR
 				DoKillProcessTree(pid); // 프로세스 트리 종료
 				g_pParent->DoKillRecoveryRansomware(pid); // 파일 복구
 
-				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, NULL, NULL); // 팝업창
+				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, pid, NULL); // 팝업창
 				RefreshDesktopDirectory();
 			}
 		}
@@ -1333,7 +1345,7 @@ bool CAntiRansomwareUserDlg::DoPopupInfoWindow(int type)
 	// 알림
 	if (m_pAntiRansomwarePopupDlg.GetSafeHwnd() == NULL) {
 		m_pAntiRansomwarePopupDlg.Create(IDD_ANTIRANSOMWAREPOPUPDLG);
-		m_pAntiRansomwarePopupDlg.InitPopupWindow(type);
+		m_pAntiRansomwarePopupDlg.InitPopupWindow(type, m_sPopupMessage);
 	}
 	m_pAntiRansomwarePopupDlg.ShowWindow(SW_SHOW);
 

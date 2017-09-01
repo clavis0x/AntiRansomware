@@ -37,3 +37,11 @@ typedef struct sItemCheckFile { // 검사 대상 파일
 	CString strPath;
 	int nCheckCount;
 } ITEM_CHECK_FILE;
+
+typedef struct sItemPopupMessage { // 팝업 메시지
+	DWORD pid;
+	CString strProcName;
+	CString strProcPath;
+	CString strTitle;
+	CString strMessage;
+} ITEM_POPUP_MESSAGE;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AntiRansomwareTable.h"
+#include "afxcmn.h"
 
 // CAntiRansomwarePopupDlg 대화 상자입니다.
 
@@ -30,10 +32,13 @@ public:
 	virtual BOOL OnInitDialog();
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 public:
-	void InitPopupWindow(int type);
+	void InitPopupWindow(int type, ITEM_POPUP_MESSAGE &sItem);
 
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnClose();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	afx_msg void OnDestroy();
+	CLinkCtrl ctr_linkProcPath;
+	afx_msg void OnBnClickedButtonYes();
+	afx_msg void OnBnClickedButtonNo();
 };
