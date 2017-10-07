@@ -1334,7 +1334,7 @@ int CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	*/
 	if (isDeleteBackupFile == true) {
 		AddLogList("백업 파일 삭제: " + strBackupPath);
-		DeleteFile(strBackupPath); // 원본 파일 삭제
+		DeleteFile(strBackupPath); // 백업 파일 삭제
 	}
 
 	return 0;
