@@ -166,6 +166,7 @@ void CAntiRansomwarePopupDlg::InitPopupWindow(ITEM_POPUP_MESSAGE &sItem)
 {
 	CRect rect;
 	CString strTemp;
+	int nTypeButton = 0;
 	m_typePopup = sItem.typePopup;
 	m_pPopupMessage = &sItem;
 	GetDlgItem(IDC_STATIC_MESSAGE2)->GetWindowRect(rect);
@@ -185,8 +186,21 @@ void CAntiRansomwarePopupDlg::InitPopupWindow(ITEM_POPUP_MESSAGE &sItem)
 			strTemp.Format("(<a>%s</a>)", sItem.strProcPath);
 			GetDlgItem(IDC_SYSLINK_PROCPATH)->SetWindowTextA(strTemp);
 			m_background.LoadBitmapA(IDB_BITMAP_POPUP_RED);
+			nTypeButton = 0;
 			break;
 		case 2:
+			this->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_TITLE)->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_MESSAGE)->SetWindowTextA(sItem.strMessage1);
+			GetDlgItem(IDC_STATIC_MESSAGE2)->SetWindowTextA(sItem.strMessage2);
+			strTemp.Format("%s", sItem.strProcName);
+			GetDlgItem(IDC_STATIC_PROCNAME)->SetWindowTextA(strTemp);
+			strTemp.Format("(<a>%s</a>)", sItem.strProcPath);
+			GetDlgItem(IDC_SYSLINK_PROCPATH)->SetWindowTextA(strTemp);
+			m_background.LoadBitmapA(IDB_BITMAP_POPUP_RED);
+			nTypeButton = 1;
+			break;
+		case 3:
 			this->SetWindowTextA(sItem.strTitle);
 			GetDlgItem(IDC_STATIC_TITLE)->SetWindowTextA(sItem.strTitle);
 			GetDlgItem(IDC_STATIC_MESSAGE)->SetWindowTextA(sItem.strMessage1);
@@ -196,8 +210,19 @@ void CAntiRansomwarePopupDlg::InitPopupWindow(ITEM_POPUP_MESSAGE &sItem)
 			GetDlgItem(IDC_STATIC_PROCNAME)->ShowWindow(false);
 			GetDlgItem(IDC_SYSLINK_PROCPATH)->ShowWindow(false);
 			m_background.LoadBitmapA(IDB_BITMAP_POPUP_BLUE);
+			nTypeButton = 0;
 			break;
 	}
+
+	if (nTypeButton == 1) {
+		GetDlgItem(IDC_BUTTON_YES)->GetWindowRect(rect);
+		ScreenToClient(rect);
+		GetDlgItem(IDC_BUTTON_YES)->MoveWindow(rect.left + 62, rect.top, rect.Width(), rect.Height());
+		GetDlgItem(IDC_BUTTON_YES)->SetWindowTextA("확인");
+		GetDlgItem(IDC_BUTTON_NO)->ShowWindow(false);
+	}
+
+
 	Invalidate(TRUE);
 }
 
@@ -207,20 +232,25 @@ void CAntiRansomwarePopupDlg::OnBnClickedButtonYes()
 
 	// 파일 전송 테스트(임시)
 	if(m_typePopup == 1){
-		m_pPopupMessage->typePopup = 2;
+		m_pPopupMessage->typePopup = 3;
 		m_pPopupMessage->strTitle = "랜섬웨어 보고";
 		m_pPopupMessage->strMessage1 = "랜섬웨어 의심파일 보고";
-		m_pPopupMessage->strMessage2.Format("랜섬웨어로 의심되는 파일을 보다 정확하게 분석하기 위해\n가상 환경 자동 분석 서버로 전송하시겠습니까?\n\nFile: %s\\%s", m_pPopupMessage->strProcPath, m_pPopupMessage->strProcName);
+		m_pPopupMessage->strMessage2.Format("랜섬웨어로 의심되는 파일을 보다 정확하게 분석하기 위해\n가상 환경 자동 분석 서버로 전송하시겠습니까?\n\nFile: %s\\%s",
+											m_pPopupMessage->strProcPath, m_pPopupMessage->strProcName);
 
 		ShowWindow(SW_HIDE);
 		Sleep(100);
 		InitPopupWindow(*m_pPopupMessage);
 		ShowWindow(SW_SHOW);
 	}
-	else {
+	else if (m_typePopup == 3) {
 		CString strTemp;
 		strTemp.Format("%s\\%s", m_pPopupMessage->strProcPath, m_pPopupMessage->strProcName);
 		g_pParent->DoSendRansomwareFile(strTemp);
+		EndDialog(IDOK);
+		DestroyWindow();
+	}
+	else {
 		EndDialog(IDOK);
 		DestroyWindow();
 	}

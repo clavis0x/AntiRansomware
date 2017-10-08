@@ -55,6 +55,7 @@ public:
 	list<ITEM_CHECK_FILE> m_listCheckFile;
 
 	map<unsigned int, ArProcessBehavior*> m_mapProcessBehavior;
+	CString m_strDetectedPath; // Yara Test
 
 	int m_nCountMonitor;
 
@@ -107,6 +108,7 @@ public:
 	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	int GetPermissionDirectory(CString strPath, DWORD pid = 0);
 	int DoCheckRansomware(CString strPath);
+	int DoMatchRansomwareDB(CString strPath);
 	bool DoPopupInfoWindow();
 	bool DoKillRecoveryRansomware(DWORD pid);
 	bool AddCheckRansomwareFile(DWORD pid, CString strPath);

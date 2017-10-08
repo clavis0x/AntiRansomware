@@ -14,7 +14,7 @@
 #define SERVER_PORT "12345"
 
 const char* g_szBackupPath = "\\_SafeBackup"; // 백업 폴더
-const char* g_szBackupExt = "txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar"; // 보호 파일 확장자
+const char* g_szBackupExt = "exe,txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar"; // 보호 파일 확장자
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -208,15 +208,27 @@ LRESULT CAntiRansomwareUserDlg::OnInitializationCompleted(WPARAM wParam, LPARAM 
 LRESULT CAntiRansomwareUserDlg::OnPopupInfoWindow(WPARAM wParam, LPARAM lParam) // WM_POPUP_INFO_WINDOW
 {
 	ArProcessBehavior* itemArProcessBehavior;
-	itemArProcessBehavior = m_mapProcessBehavior[wParam];
 
-	m_sPopupMessage.typePopup = 1;
-	m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
-	m_sPopupMessage.strMessage1 = "랜섬웨어 의심 행위가 탐지되었습니다.";
-	m_sPopupMessage.strMessage2 = "해당 실행 파일을 삭제하시겠습니까 ?";
-	m_sPopupMessage.pid = wParam;
-	m_sPopupMessage.strProcName = itemArProcessBehavior->GetProcessName(PB_PROC_NAME);
-	m_sPopupMessage.strProcPath = itemArProcessBehavior->GetProcessName(PB_PROC_PATH);
+	if (wParam == 0) { // 행위기반 탐지
+		itemArProcessBehavior = m_mapProcessBehavior[lParam];
+
+		m_sPopupMessage.typePopup = 1;
+		m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
+		m_sPopupMessage.strMessage1 = "랜섬웨어 의심 행위가 탐지되었습니다. (Behavior)";
+		m_sPopupMessage.strMessage2 = "해당 실행 파일을 삭제하시겠습니까 ?";
+		m_sPopupMessage.pid = lParam;
+		m_sPopupMessage.strProcName = itemArProcessBehavior->GetProcessName(PB_PROC_NAME);
+		m_sPopupMessage.strProcPath = itemArProcessBehavior->GetProcessName(PB_PROC_PATH);
+	}
+	else if (wParam == 1) { // 시그니처 탐지
+		m_sPopupMessage.typePopup = 2;
+		m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
+		m_sPopupMessage.strMessage1 = "랜섬웨어가 탐지되었습니다. (Signature)";
+		m_sPopupMessage.strMessage2 = "랜섬웨어가 탐지되어 해당 실행 파일을 삭제하였습니다.";
+		m_sPopupMessage.pid = -1;
+		m_sPopupMessage.strProcName = PathFindFileName(m_strDetectedPath.GetBuffer());
+		m_sPopupMessage.strProcPath = m_strDetectedPath;
+	}
 
 	g_pParent->DoPopupInfoWindow(); // 팝업창
 	return S_OK;
@@ -351,7 +363,7 @@ void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWOR
 				DoKillProcessTree(pid); // 프로세스 트리 종료
 				g_pParent->DoKillRecoveryRansomware(pid); // 파일 복구
 
-				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, pid, NULL); // 팝업창
+				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, 0, pid); // 팝업창
 				RefreshDesktopDirectory();
 			}
 		}
@@ -1391,19 +1403,30 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 		if (!listFile->empty()) {
 			for (itor = listFile->begin(); itor != listFile->end();) {
 				if(&itor != NULL){
-					nResult = pDlg->DoCheckRansomware(itor->strPath); // 랜섬웨어 감염 확인
+					// 탐지 시도
+					if (itor->nCheckType == 0)								// 행위기반 탐지
+						nResult = pDlg->DoCheckRansomware(itor->strPath);	// - 랜섬웨어 감염 확인
+					else if (itor->nCheckType == 1)							// 시그니처 탐지
+						nResult = pDlg->DoMatchRansomwareDB(itor->strPath);	// - Yara rule
+
+					// 결과
 					if (nResult == 1) { // 파일 변조됨
-						itemArProcessBehavior = pDlg->m_mapProcessBehavior[itor->pid];
-						itemArProcessBehavior->AddEventWriteSpFile(itor->strPath, true); // 의심
-						strTemp.Format("[%d] PB_COUNT_WRITE_SP: %d", itor->pid, itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
-						pDlg->AddLogList(strTemp);
+						if (itor->nCheckType == 0) { // 행위기반
+							itemArProcessBehavior = pDlg->m_mapProcessBehavior[itor->pid];
+							itemArProcessBehavior->AddEventWriteSpFile(itor->strPath, true); // 의심
+							strTemp.Format("[%d] PB_COUNT_WRITE_SP: %d", itor->pid, itemArProcessBehavior->GetCountBehavior(PB_COUNT_WRITE_SP));
+							pDlg->AddLogList(strTemp);
+						}
+						else if (itor->nCheckType == 1) { // 시그니처
+							// 파일 삭제
+							// 알림
+						}
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
-					else if (nResult == 0) {
-						//pDlg->AddLogList("[L] 이상 없음");
+					else if (nResult == 0) { // 정상
 						itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 					}
-					else if (nResult == -1) {
+					else if (nResult == -1) { // Open 실패
 						if (itor->nCheckCount < 10)
 							isNewFile = true;
 						itor->nCheckCount++;
@@ -1413,7 +1436,7 @@ static UINT CheckRansomwareWorker(LPVOID lpParam)
 							itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 						}
 						else {
-							if (itor->nCheckCount > 100){
+							if (itor->nCheckCount > 100) {
 								pDlg->AddLogList("[L] 파일 열기 실패 (check count)");
 								itor = pDlg->m_listCheckFile.erase(itor); // 항목 삭제
 							}
@@ -1488,11 +1511,20 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonRecovery()
 
 bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 {
+	CString strExt;
 	CString strTemp;
 	ITEM_CHECK_FILE tmpICF;
+
 	tmpICF.pid = pid;
 	tmpICF.strPath = strPath;
 	tmpICF.nCheckCount = 0;
+
+	strExt = PathFindExtension(strPath);
+	strExt = strExt.Mid(1);
+	if (strExt.Compare("exe") != 0)
+		tmpICF.nCheckType = 0; // 행위기반 탐지
+	else
+		tmpICF.nCheckType = 1; // 시그니처 탐지
 
 	EnterCriticalSection(&m_csFileQueue);
 
@@ -1592,6 +1624,8 @@ bool CAntiRansomwareUserDlg::SetDetectionEngine()
 void CAntiRansomwareUserDlg::OnBnClickedButtonMenu2()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	m_strDetectedPath = "c:\\test.exe";
+	PostMessageA(WM_POPUP_INFO_WINDOW, 1, NULL); // 팝업창
 }
 
 
@@ -1607,6 +1641,8 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonMenu3()
 void CAntiRansomwareUserDlg::OnBnClickedButtonMenu4()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	int nResult;
+	DoMatchRansomwareDB("E:\\【Clavis】\\【Programming】\\【Project】\\Anti_Ransomware\\TestRansomware\\Release\\TestRansomware.exe");
 }
 
 
@@ -1679,4 +1715,34 @@ bool CAntiRansomwareUserDlg::DoUpdateSignatureDB()
 	DeleteFile(szFileName); // 원본 파일 삭제
 
 	return true;
+}
+
+int CAntiRansomwareUserDlg::DoMatchRansomwareDB(CString strPath)
+{
+	FILE* file;
+	HANDLE hFile;
+	char output[1024];
+	char command[1024];
+	CString strTemp;
+
+	hFile = CreateFile(strPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+		return -1; // Open 실패
+	else
+		CloseHandle(hFile);
+
+	// Temp - Yara Test
+	sprintf(command, "%s\\yara32.exe %s\\db\\AR.yar %s", appPath, appPath, strPath);
+
+	file = _popen(command, "r");
+	fread(output, 1, sizeof(output), file);
+	fclose(file);
+	if (strstr(output, strPath)) {
+		strTemp.Format("랜섬웨어 탐지! - Path: %s", strPath);
+		g_pParent->AddLogList(strTemp);
+		m_strDetectedPath = strPath;
+		PostMessageA(WM_POPUP_INFO_WINDOW, 1, NULL); // 팝업창
+		return 1;
+	}
+	return 0;
 }

@@ -36,6 +36,7 @@ typedef struct sItemCheckFile { // 검사 대상 파일
 	DWORD pid;
 	CString strPath;
 	int nCheckCount;
+	int nCheckType;
 } ITEM_CHECK_FILE;
 
 typedef struct sItemPopupMessage { // 팝업 메시지
