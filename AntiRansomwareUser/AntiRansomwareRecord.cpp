@@ -81,7 +81,6 @@ int ArProcessBehavior::CheckProcessInfo()
 	return 0;
 }
 
-
 // 프로세스 행위 기록
 int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 {

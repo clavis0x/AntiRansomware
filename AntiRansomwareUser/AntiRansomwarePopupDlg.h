@@ -1,7 +1,7 @@
 #pragma once
 
-#include "AntiRansomwareTable.h"
 #include "afxcmn.h"
+#include "AntiRansomwareTable.h"
 
 // CAntiRansomwarePopupDlg 대화 상자입니다.
 
@@ -26,13 +26,15 @@ protected:
 	CFont m_fontTitle;
 	CFont m_fontMessage;
 
+	ITEM_POPUP_MESSAGE *m_pPopupMessage;
+
 // Anti-Ransomware Popup
 public:
 	DECLARE_MESSAGE_MAP()
 	virtual BOOL OnInitDialog();
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 public:
-	void InitPopupWindow(int type, ITEM_POPUP_MESSAGE &sItem);
+	void InitPopupWindow(ITEM_POPUP_MESSAGE &sItem);
 
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnClose();

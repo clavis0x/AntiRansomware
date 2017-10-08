@@ -62,7 +62,8 @@ using std::map;
 // Libraries
 #include "md5.h"
 #include "lib/ssdeep/fuzzy.h"
-
+#include "zip.h"
+#include "unzip.h"
 
 
 

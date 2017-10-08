@@ -9,6 +9,9 @@
 
 #include "MemDC.h"
 
+// 가상 분석 & 업데이트 서버
+#define SERVER_IP "192.168.0.4"
+#define SERVER_PORT "12345"
 
 const char* g_szBackupPath = "\\_SafeBackup"; // 백업 폴더
 const char* g_szBackupExt = "txt,hwp,doc,docx,ppt,pptx,xls,xlsx,c,cpp,h,hpp,bmp,jpg,gif,png,zip,rar"; // 보호 파일 확장자
@@ -97,6 +100,13 @@ BOOL CAntiRansomwareUserDlg::OnInitDialog()
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	hWnd = AfxGetMainWnd()->m_hWnd; // GET MAIN HANDLE
 	g_pParent = this; // 부모 개체 정의
+
+	TCHAR szPath[_MAX_PATH];
+	GetModuleFileName(AfxGetInstanceHandle(), szPath, _MAX_PATH); // 현재 실행파일 경로 구하기
+	appPath = szPath;
+	int nPos = appPath.ReverseFind('\\'); // 실행파일 경로에서 파일명 제외
+	if (nPos > 0)
+		appPath = appPath.Left(nPos);
 
 	// Init UI
 	InitDialogUI();
@@ -200,11 +210,15 @@ LRESULT CAntiRansomwareUserDlg::OnPopupInfoWindow(WPARAM wParam, LPARAM lParam) 
 	ArProcessBehavior* itemArProcessBehavior;
 	itemArProcessBehavior = m_mapProcessBehavior[wParam];
 
+	m_sPopupMessage.typePopup = 1;
+	m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
+	m_sPopupMessage.strMessage1 = "랜섬웨어 의심 행위가 탐지되었습니다.";
+	m_sPopupMessage.strMessage2 = "해당 실행 파일을 삭제하시겠습니까 ?";
 	m_sPopupMessage.pid = wParam;
 	m_sPopupMessage.strProcName = itemArProcessBehavior->GetProcessName(PB_PROC_NAME);
 	m_sPopupMessage.strProcPath = itemArProcessBehavior->GetProcessName(PB_PROC_PATH);
 
-	g_pParent->DoPopupInfoWindow(0); // 팝업창
+	g_pParent->DoPopupInfoWindow(); // 팝업창
 	return S_OK;
 }
 
@@ -1334,18 +1348,18 @@ int CAntiRansomwareUserDlg::DoCheckRansomware(CString strPath)
 	*/
 	if (isDeleteBackupFile == true) {
 		AddLogList("백업 파일 삭제: " + strBackupPath);
-		DeleteFile(strBackupPath); // 원본 파일 삭제
+		DeleteFile(strBackupPath); // 백업 파일 삭제
 	}
 
 	return 0;
 }
 
-bool CAntiRansomwareUserDlg::DoPopupInfoWindow(int type)
+bool CAntiRansomwareUserDlg::DoPopupInfoWindow()
 {
 	// 알림
 	if (m_pAntiRansomwarePopupDlg.GetSafeHwnd() == NULL) {
 		m_pAntiRansomwarePopupDlg.Create(IDD_ANTIRANSOMWAREPOPUPDLG);
-		m_pAntiRansomwarePopupDlg.InitPopupWindow(type, m_sPopupMessage);
+		m_pAntiRansomwarePopupDlg.InitPopupWindow(m_sPopupMessage);
 	}
 	m_pAntiRansomwarePopupDlg.ShowWindow(SW_SHOW);
 
@@ -1514,7 +1528,15 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonClose()
 void CAntiRansomwareUserDlg::OnBnClickedButtonMinimum()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	g_pParent->DoPopupInfoWindow(0); // 팝업창
+	m_sPopupMessage.typePopup = 1;
+	m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
+	m_sPopupMessage.strMessage1 = "랜섬웨어 의심 행위가 탐지되었습니다.";
+	m_sPopupMessage.strMessage2 = "해당 실행 파일을 삭제하시겠습니까 ?";
+	m_sPopupMessage.pid = 1234;
+	m_sPopupMessage.strProcName = "Name";
+	m_sPopupMessage.strProcPath = "Path";
+
+	g_pParent->DoPopupInfoWindow(); // 팝업창
 }
 
 
@@ -1576,6 +1598,9 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonMenu2()
 void CAntiRansomwareUserDlg::OnBnClickedButtonMenu3()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+	bool result;
+	result = DoUpdateSignatureDB();
+	
 }
 
 
@@ -1593,4 +1618,65 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonMenu5()
 		m_pAntiRansomwareSettingsDlg.CenterWindow(CWnd::FromHandle(this->m_hWnd));
 	}
 	m_pAntiRansomwareSettingsDlg.ShowWindow(SW_SHOW);
+}
+
+bool CAntiRansomwareUserDlg::DoSendRansomwareFile(CString strPath)
+{
+	bool result;
+	CString strHeader;
+	CString strExt;
+
+	result = m_fileTransfer.ConnectToServer(SERVER_IP, SERVER_PORT);
+	if (result == false) {
+		AfxMessageBox("Failed!");
+	}
+
+	// 확장자 분리
+	strExt = PathFindExtension(strPath);
+	strExt = strExt.Mid(1);
+
+	strHeader.Format("CheckVM Detected %s", strExt);
+	m_fileTransfer.SendFile(strHeader.GetBuffer(), strPath.GetBuffer());
+	
+
+	m_fileTransfer.Disconnect();
+	return true;
+}
+
+bool CAntiRansomwareUserDlg::DoUpdateSignatureDB()
+{
+	bool result;
+	CString strHeader;
+	CString strExt;
+	HZIP hz;
+	ZIPENTRY ze;
+	char szFileName[1024] = { 0 };
+	char szFilePath[1024] = { 0 };
+
+	sprintf(szFilePath, "%s\\db\\", appPath);
+	sprintf(szFileName, "%supdb_ar.zip", szFilePath);
+
+	result = m_fileTransfer.ConnectToServer(SERVER_IP, SERVER_PORT);
+	if (result == false) {
+		AfxMessageBox("Failed!");
+	}
+
+	strHeader.Format("UpdateDB");
+	m_fileTransfer.RecvFile(strHeader.GetBuffer(), szFileName);
+
+	m_fileTransfer.Disconnect();
+	
+	hz = OpenZip(_T(szFileName), 0);
+	SetUnzipBaseDir(hz, _T(szFilePath));
+	GetZipItem(hz, -1, &ze);
+	int numitems = ze.index;
+	for (int zi = 0; zi<numitems; zi++)
+	{
+		GetZipItem(hz, zi, &ze);
+		UnzipItem(hz, zi, ze.name);
+	}
+	CloseZip(hz);
+	DeleteFile(szFileName); // 원본 파일 삭제
+
+	return true;
 }

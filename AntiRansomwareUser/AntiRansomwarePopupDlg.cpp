@@ -5,6 +5,9 @@
 #include "AntiRansomwareUser.h"
 #include "AntiRansomwarePopupDlg.h"
 #include "afxdialogex.h"
+#include "AntiRansomwareUserDlg.h"
+
+extern CAntiRansomwareUserDlg *g_pParent;
 
 
 // CAntiRansomwarePopupDlg 대화 상자입니다.
@@ -159,35 +162,68 @@ void CAntiRansomwarePopupDlg::OnLButtonDown(UINT nFlags, CPoint point)
 }
 
 
-void CAntiRansomwarePopupDlg::InitPopupWindow(int type, ITEM_POPUP_MESSAGE &sItem)
+void CAntiRansomwarePopupDlg::InitPopupWindow(ITEM_POPUP_MESSAGE &sItem)
 {
+	CRect rect;
 	CString strTemp;
-	m_typePopup = type;
+	m_typePopup = sItem.typePopup;
+	m_pPopupMessage = &sItem;
+	GetDlgItem(IDC_STATIC_MESSAGE2)->GetWindowRect(rect);
+	ScreenToClient(rect);
+
+	m_background.DeleteObject();
 
 	switch (m_typePopup)
 	{
-		case 0:
-			this->SetWindowTextA("랜섬웨어 탐지");
-			GetDlgItem(IDC_STATIC_TITLE)->SetWindowTextA("랜섬웨어 탐지!");
-			GetDlgItem(IDC_STATIC_MESSAGE)->SetWindowTextA("랜섬웨어 의심 행위가 탐지되었습니다.");
+		case 1:
+			this->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_TITLE)->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_MESSAGE)->SetWindowTextA(sItem.strMessage1);
+			GetDlgItem(IDC_STATIC_MESSAGE2)->SetWindowTextA(sItem.strMessage2);
 			strTemp.Format("[%d] %s", sItem.pid, sItem.strProcName);
 			GetDlgItem(IDC_STATIC_PROCNAME)->SetWindowTextA(strTemp);
 			strTemp.Format("(<a>%s</a>)", sItem.strProcPath);
 			GetDlgItem(IDC_SYSLINK_PROCPATH)->SetWindowTextA(strTemp);
 			m_background.LoadBitmapA(IDB_BITMAP_POPUP_RED);
 			break;
-		case 1:
-			this->SetWindowTextA("알림");
+		case 2:
+			this->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_TITLE)->SetWindowTextA(sItem.strTitle);
+			GetDlgItem(IDC_STATIC_MESSAGE)->SetWindowTextA(sItem.strMessage1);
+			GetDlgItem(IDC_STATIC_MESSAGE2)->SetWindowTextA(sItem.strMessage2);
+			GetDlgItem(IDC_STATIC_MESSAGE2)->MoveWindow(rect.left, 85, rect.Width(), rect.Height() + (rect.top - 85));
+			GetDlgItem(IDC_STATIC_PROCINFO)->ShowWindow(false);
+			GetDlgItem(IDC_STATIC_PROCNAME)->ShowWindow(false);
+			GetDlgItem(IDC_SYSLINK_PROCPATH)->ShowWindow(false);
 			m_background.LoadBitmapA(IDB_BITMAP_POPUP_BLUE);
 			break;
 	}
+	Invalidate(TRUE);
 }
 
 void CAntiRansomwarePopupDlg::OnBnClickedButtonYes()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	EndDialog(IDOK);
-	DestroyWindow();
+
+	// 파일 전송 테스트(임시)
+	if(m_typePopup == 1){
+		m_pPopupMessage->typePopup = 2;
+		m_pPopupMessage->strTitle = "랜섬웨어 보고";
+		m_pPopupMessage->strMessage1 = "랜섬웨어 의심파일 보고";
+		m_pPopupMessage->strMessage2.Format("랜섬웨어로 의심되는 파일을 보다 정확하게 분석하기 위해\n가상 환경 자동 분석 서버로 전송하시겠습니까?\n\nFile: %s\\%s", m_pPopupMessage->strProcPath, m_pPopupMessage->strProcName);
+
+		ShowWindow(SW_HIDE);
+		Sleep(100);
+		InitPopupWindow(*m_pPopupMessage);
+		ShowWindow(SW_SHOW);
+	}
+	else {
+		CString strTemp;
+		strTemp.Format("%s\\%s", m_pPopupMessage->strProcPath, m_pPopupMessage->strProcName);
+		g_pParent->DoSendRansomwareFile(strTemp);
+		EndDialog(IDOK);
+		DestroyWindow();
+	}
 }
 
 

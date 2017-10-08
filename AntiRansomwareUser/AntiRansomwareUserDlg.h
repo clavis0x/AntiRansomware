@@ -11,6 +11,7 @@
 #include "scanuser.h"
 
 #include "GdipButton.h"
+#include "TCPFileTransfer.h"
 
 const UINT WM_INITIALIZATION_COMPLETED = ::RegisterWindowMessage("WM_INITIALIZATION_COMPLETED");
 const UINT WM_POPUP_INFO_WINDOW = ::RegisterWindowMessage("WM_POPUP_INFO_WINDOW");
@@ -38,6 +39,7 @@ public:
 
 // MyScanner
 private:
+	CString appPath; // PATH
 	CWinThread*	pThreadCommunication;
 	list<CString> m_listFileExt; // 파일 확장자
 	CRITICAL_SECTION m_csFileExt;
@@ -60,6 +62,8 @@ public:
 	CString m_strBackingUpPath;
 
 	ITEM_POPUP_MESSAGE m_sPopupMessage;
+
+	CFileTransfer m_fileTransfer;
 
 // 구현입니다.
 protected:
@@ -103,9 +107,11 @@ public:
 	int RecordProcessBehavior(PSCANNER_NOTIFICATION notification);
 	int GetPermissionDirectory(CString strPath, DWORD pid = 0);
 	int DoCheckRansomware(CString strPath);
-	bool DoPopupInfoWindow(int type);
+	bool DoPopupInfoWindow();
 	bool DoKillRecoveryRansomware(DWORD pid);
 	bool AddCheckRansomwareFile(DWORD pid, CString strPath);
+	bool DoSendRansomwareFile(CString strPath);
+	bool DoUpdateSignatureDB();
 	CString GetBackupFilePath(CString strPath);
 	CEdit ctr_editTargetPid;
 	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
