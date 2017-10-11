@@ -10,3 +10,6 @@ Link: [안티-랜섬웨어 시연 연상 Anti-Ransomware Demo (YouTube)](https:/
 
 ## Platform
 * Windows 7 x64
+
+## Mechanism
+* File System Minifilter Driver
