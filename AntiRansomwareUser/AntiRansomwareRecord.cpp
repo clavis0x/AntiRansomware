@@ -147,6 +147,9 @@ int ArProcessBehavior::RecordProcessBehavior(PSCANNER_NOTIFICATION notification)
 			if (isCheckFileExt) {
 				strTemp.Format("[½Å±Ô] %s: %s", (notification->isDir) ? "Dir" : "File", strFilePath);
 				AddLogList(strTemp);
+				if (strFilePath.Find(".exe", 0) >= 0) {
+					g_pParent->AddCheckRansomwareFile(m_pid, strFilePath);
+				}
 			}
 		}
 		else if (notification->CreateOptions == 2) {

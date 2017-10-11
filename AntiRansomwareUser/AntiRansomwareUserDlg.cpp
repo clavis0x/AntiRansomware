@@ -1521,10 +1521,12 @@ bool CAntiRansomwareUserDlg::AddCheckRansomwareFile(DWORD pid, CString strPath)
 
 	strExt = PathFindExtension(strPath);
 	strExt = strExt.Mid(1);
-	if (strExt.Compare("exe") != 0)
+	if (strExt.Compare("exe") != 0) {
 		tmpICF.nCheckType = 0; // 행위기반 탐지
-	else
+	}
+	else {
 		tmpICF.nCheckType = 1; // 시그니처 탐지
+	}
 
 	EnterCriticalSection(&m_csFileQueue);
 
@@ -1634,7 +1636,9 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonMenu3()
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	bool result;
 	result = DoUpdateSignatureDB();
-	
+	if (result == true) {
+		AfxMessageBox("업데이트가 완료되었습니다!");
+	}
 }
 
 
