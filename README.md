@@ -1,8 +1,8 @@
 # Anti-Ransomware
 ![user main](https://user-images.githubusercontent.com/28994727/31466411-0999d474-af12-11e7-8736-270b7d0a80a4.png)
 ## Introduction
-Link: [ÇàÀ§±â¹İ Å½ÁöÀÇ ¾ÈÆ¼·£¼¶¿ş¾î Á¦ÀÛ(pdf)]
-Link: [¾ÈÆ¼-·£¼¶¿ş¾î ½Ã¿¬ ¿¬»ó(YouTube)](https://youtu.be/PlxZVe6OoVk)
+Link: [í–‰ìœ„ê¸°ë°˜ íƒì§€ì˜ ì•ˆí‹°ëœì„¬ì›¨ì–´ ì œì‘(pdf)]()
+Link: [ì•ˆí‹°-ëœì„¬ì›¨ì–´ ì‹œì—° ì—°ìƒ(YouTube)](https://youtu.be/PlxZVe6OoVk)
 
 ## Develop Environment
 * Visual Studio Community 2015 Update 3
