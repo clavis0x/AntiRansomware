@@ -211,6 +211,12 @@ LRESULT CAntiRansomwareUserDlg::OnPopupInfoWindow(WPARAM wParam, LPARAM lParam) 
 
 	if (wParam == 0) { // 행위기반 탐지
 		itemArProcessBehavior = m_mapProcessBehavior[lParam];
+		if (itemArProcessBehavior == NULL) {
+			CString strTemp;
+			strTemp.Format("Error: WM_POPUP_INFO_WINDOW(%d)", lParam);
+			AddLogList(strTemp);
+			return S_OK;
+		}
 
 		m_sPopupMessage.typePopup = 1;
 		m_sPopupMessage.strTitle = "랜섬웨어 탐지!";
@@ -345,7 +351,7 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonViewreport()
 
 void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWORD dw2)
 {
-	DWORD pid;
+	DWORD s_pid;
 	int nResult;
 	CString strTemp;
 
@@ -356,14 +362,22 @@ void CALLBACK OnTimerFunc(UINT wTimerID, UINT msg, DWORD dwUser, DWORD dw1, DWOR
 		// 프로세스 기록 조회
 		for (itor = g_pParent->m_mapProcessBehavior.begin(); itor != g_pParent->m_mapProcessBehavior.end(); ++itor) {
 			nResult = itor->second->CheckProcessInfo();
-			if(nResult == 1){
+			if (nResult == 1) {
 				strTemp.Format("랜섬웨어 탐지! - pid: %d", itor->first);
 				g_pParent->AddLogList(strTemp);
-				pid = FindRansomwareParantPID(itor->second->GetProcessInfo(PB_PROC_PID));
-				DoKillProcessTree(pid); // 프로세스 트리 종료
-				g_pParent->DoKillRecoveryRansomware(pid); // 파일 복구
+				s_pid = FindRansomwareParantPID(itor->second->GetProcessInfo(PB_PROC_PID));
+				DoKillProcessTree(s_pid); // 프로세스 트리 종료
+				g_pParent->DoKillRecoveryRansomware(s_pid); // 파일 복구
 
-				PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, 0, pid); // 팝업창
+
+				if (g_pParent->m_mapProcessBehavior.find(s_pid) != g_pParent->m_mapProcessBehavior.end()) {
+					PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, 0, s_pid); // 팝업창
+				}
+				else {
+					PostMessageA(g_pParent->m_hWnd, WM_POPUP_INFO_WINDOW, 0, itor->first); // 팝업창
+				}
+
+				// 디렉터리 새로고침
 				RefreshDesktopDirectory();
 			}
 		}
@@ -1626,8 +1640,8 @@ bool CAntiRansomwareUserDlg::SetDetectionEngine()
 void CAntiRansomwareUserDlg::OnBnClickedButtonMenu2()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
-	m_strDetectedPath = "c:\\test.exe";
-	PostMessageA(WM_POPUP_INFO_WINDOW, 1, NULL); // 팝업창
+	//m_strDetectedPath = "c:\\test.exe";
+	//PostMessageA(WM_POPUP_INFO_WINDOW, 1, NULL); // 팝업창
 }
 
 
@@ -1646,7 +1660,7 @@ void CAntiRansomwareUserDlg::OnBnClickedButtonMenu4()
 {
 	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
 	int nResult;
-	DoMatchRansomwareDB("E:\\【Clavis】\\【Programming】\\【Project】\\Anti_Ransomware\\TestRansomware\\Release\\TestRansomware.exe");
+	//DoMatchRansomwareDB("E:\\【Clavis】\\【Programming】\\【Project】\\Anti_Ransomware\\TestRansomware\\Release\\TestRansomware.exe");
 }
 
 
@@ -1728,6 +1742,11 @@ int CAntiRansomwareUserDlg::DoMatchRansomwareDB(CString strPath)
 	char output[1024];
 	char command[1024];
 	CString strTemp;
+
+
+	// Disable
+	return 0;
+
 
 	hFile = CreateFile(strPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
